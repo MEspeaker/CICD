@@ -1,0 +1,29 @@
+name: CI with Docker & Docker Compose
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Build & start services
+        run: |
+          docker compose up -d --build
+          # give the app a moment to start
+          sleep 10
+
+      - name: Run test suite
+        run: |
+          docker compose exec web pytest
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes --remove-orphans
