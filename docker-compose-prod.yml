@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  web:
+    image: sho3492/myflask:latest
+    build: null
+    environment:
+      - FLASK_ENV=production
+    expose:
+      - "5000"           # 외부 노출은 nginx가 담당
+    ports: []
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d:ro
+    restart: unless-stopped
