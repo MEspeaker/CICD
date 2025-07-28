@@ -4,15 +4,18 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ dev ]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
+
 
       - name: Build & start services
         run: |
@@ -24,68 +27,9 @@ jobs:
         run: |
           docker compose exec web pytest
 
+
+
       - name: Tear down
         if: always()
         run: docker compose down --volumes --remove-orphans
-      
-            # 1) 코드 체크아웃
-      - name: Check out code
-        uses: actions/checkout@v3
-
-      # 2) Docker Hub 로그인
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      # 3) 이미지 빌드 및 푸시
-      - name: Build and Push Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/myflask:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/myflask:${{ github.sha }}
-
-      # 4) 로그아웃 (선택)
-      - name: Log out from Docker Hub
-        run: docker logout
-
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    env:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      REMOTE_APP_DIR: ${{ secrets.REMOTE_APP_DIR }}
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Prepare SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.GCP_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.GCP_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Ensure remote dir exists
-        run: |
-          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
-            mkdir -p ${REMOTE_APP_DIR}"
-
-      - name: Copy files to VM (scp)
-        run: |
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
-            docker-compose.yml docker-compose.prod.yml -r nginx \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:${REMOTE_APP_DIR}
-
-      - name: Pull & restart on VM
-        run: |
-          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
-            set -euo pipefail; \
-            cd ${REMOTE_APP_DIR} && \
-            export DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} && \
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
 
