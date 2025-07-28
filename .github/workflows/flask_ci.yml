@@ -76,9 +76,9 @@ jobs:
 
       - name: Copy files to VM (scp)
         run: |
-          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r \
-          docker-compose.yml docker-compose.prod.yml nginx \
-          ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:${REMOTE_APP_DIR}
+          scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no \
+            docker-compose.yml docker-compose.prod.yml -r nginx \
+            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:${REMOTE_APP_DIR}
 
       - name: Pull & restart on VM
         run: |
