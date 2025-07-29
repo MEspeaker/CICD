@@ -56,20 +56,21 @@ jobs:
 
       - name: Ensure remote dir exists
         run: |
-          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
-          mkdir -p ${REMOTE_APP_DIR}"
+          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} \
+          "mkdir -p ${REMOTE_APP_DIR}"
 
       - name: Copy files to VM (scp)
         run: |
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r \
-            docker-compose.yml docker-compose.prod.yml nginx \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:${REMOTE_APP_DIR}/
+          docker-compose.yml docker-compose.prod.yml nginx \
+          ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:${REMOTE_APP_DIR}/
 
       - name: Pull & restart on VM
         run: |
-          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
-          set -euo pipefail; \
+          ssh -i ~/.ssh/id_rsa ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} \
+          "set -euo pipefail; \
           cd ${REMOTE_APP_DIR} && \
           export DOCKERHUB_USERNAME=${DOCKERHUB_USERNAME} && \
           docker compose -f docker-compose.yml -f docker-compose.prod.yml pull && \
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
+
