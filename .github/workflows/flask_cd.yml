@@ -50,7 +50,7 @@ jobs:
       - name: Prepare SSH
         run: |
           mkdir -p ~/.ssh
-          echo "%s\n" "${{ secrets.GCP_SSH_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.GCP_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.GCP_HOST }} >> ~/.ssh/known_hosts
 
@@ -62,7 +62,7 @@ jobs:
       - name: Copy files to VM (scp)
         run: |
           scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -r \
-            docker-compose.yml docker-compose.prod.yml nginx/ html/ \
+            docker-compose.yml docker-compose.prod.yml nginx \
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:${REMOTE_APP_DIR}/
 
       - name: Pull & restart on VM
