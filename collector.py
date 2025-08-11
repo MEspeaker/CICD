@@ -1,8 +1,8 @@
-from typing import Dict, List, Any, Set
+from typing import Dict, List, Any, Set, Iterable
 import time
 
 from riot_client import (
-    get_challenger_entries,
+    get_league_entries,
     get_summoner_by_id,
     get_match_ids,
     get_match,
@@ -10,12 +10,31 @@ from riot_client import (
 from storage import append_jsonl, load_summoners, save_summoners, MATCHES_JSONL
 
 
-def collect_top_matches(platform_region: str = "kr", max_players: int = 50, max_matches_per_player: int = 10) -> Dict[str, Any]:
+DEFAULT_TIERS: List[str] = ["challenger", "grandmaster", "master"]
+
+
+def _iter_entries(platform_region: str, tiers: Iterable[str]) -> List[Dict[str, Any]]:
+    combined: List[Dict[str, Any]] = []
+    for t in tiers:
+        try:
+            entries = get_league_entries(platform_region, t)
+            combined.extend(entries)
+        except Exception:
+            continue
+    return combined
+
+
+def collect_top_matches(
+    platform_region: str = "kr",
+    max_players: int = 50,
+    max_matches_per_player: int = 10,
+    tiers: Iterable[str] = DEFAULT_TIERS,
+) -> Dict[str, Any]:
     start = time.time()
     seen_match_ids: Set[str] = set()
 
-    # 1) 최신 챌린저 목록
-    entries = get_challenger_entries(platform_region)
+    # 1) 최신 상위 리그(다중 tier) 목록
+    entries = _iter_entries(platform_region, tiers)
     entries = sorted(entries, key=lambda e: e.get("leaguePoints", 0), reverse=True)[:max_players]
 
     # 2) 소환사 PUUID 수집/캐시
@@ -64,6 +83,7 @@ def collect_top_matches(platform_region: str = "kr", max_players: int = 50, max_
 
     return {
         "platform_region": platform_region,
+        "tiers": list(tiers),
         "players_collected": len(puuids),
         "matches_fetched": len(matches),
         "duration_sec": round(time.time() - start, 2),

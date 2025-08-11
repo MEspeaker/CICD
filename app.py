@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, send_from_directory
-from collector import collect_top_matches
+from collector import collect_top_matches, DEFAULT_TIERS
 from scheduler import start_scheduler_from_env
 
 app = Flask(__name__)
@@ -15,7 +15,9 @@ def collect():
     region = request.args.get("region", "kr")
     players = int(request.args.get("players", "50"))
     per_player = int(request.args.get("per_player", "10"))
-    result = collect_top_matches(region, players, per_player)
+    tiers_param = request.args.get("tiers")
+    tiers = DEFAULT_TIERS if not tiers_param else [t.strip().lower() for t in tiers_param.split(",") if t.strip()]
+    result = collect_top_matches(region, players, per_player, tiers)
     return jsonify(result)
 
 
