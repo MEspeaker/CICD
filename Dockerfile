@@ -11,5 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 앱 코드 복사
 COPY . .
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 # 앱 실행
 CMD ["python", "app.py"]
