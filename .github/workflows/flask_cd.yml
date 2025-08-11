@@ -95,6 +95,9 @@ jobs:
       # ── 2. HTTP‑only 템플릿 & Compose 업로드 ─────────────────────────────
       - name: Upload HTTP‑only Nginx template and compose
         run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
+            mkdir -p '${{ env.REMOTE_DIR }}/nginx' && \
+            rm -rf '${{ env.REMOTE_DIR }}/nginx/default.http.conf.template'"
           scp -o StrictHostKeyChecking=no nginx/default.http.conf.template \
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/nginx/default.http.conf.template"
           scp -o StrictHostKeyChecking=no docker-compose.prod.yml \
@@ -178,6 +181,8 @@ jobs:
       # ── 7. HTTPS 템플릿 업로드 ───────────────────────────────────────────
       - name: Upload HTTPS Nginx template
         run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
+            rm -rf '${{ env.REMOTE_DIR }}/nginx/default.http.conf.template'"
           scp -o StrictHostKeyChecking=no nginx/default.https.conf.template \
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/nginx/default.http.conf.template"
 
