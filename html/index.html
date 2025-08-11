@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TFT 상위 랭커 기록</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+      label { display: inline-block; min-width: 120px; }
+      input { padding: 6px 8px; }
+      button { padding: 8px 12px; cursor: pointer; }
+      pre { background: #111; color: #f3f3f3; padding: 12px; border-radius: 6px; overflow:auto; }
+    </style>
+  </head>
+  <body>
+    <h1>TFT 상위 랭커 자동 기록 (MVP)</h1>
+
+    <div>
+      <label>플랫폼 리전</label>
+      <input id="region" value="kr" />
+    </div>
+    <div style="margin-top:8px;">
+      <label>플레이어 수</label>
+      <input id="players" type="number" value="50" />
+    </div>
+    <div style="margin-top:8px;">
+      <label>플레이어당 최근 매치</label>
+      <input id="per_player" type="number" value="10" />
+    </div>
+
+    <div style="margin-top:12px;">
+      <button id="collect">수집 실행</button>
+    </div>
+
+    <h3>결과</h3>
+    <pre id="out"></pre>
+
+    <script>
+      const out = document.getElementById('out');
+      document.getElementById('collect').addEventListener('click', async () => {
+        out.textContent = '수집 중...';
+        const region = document.getElementById('region').value || 'kr';
+        const players = document.getElementById('players').value || '50';
+        const per = document.getElementById('per_player').value || '10';
+        try {
+          const resp = await fetch(`/collect?region=${encodeURIComponent(region)}&players=${encodeURIComponent(players)}&per_player=${encodeURIComponent(per)}`, {method: 'POST'});
+          const data = await resp.json();
+          out.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+          out.textContent = String(e);
+        }
+      });
+    </script>
+  </body>
+</html> 

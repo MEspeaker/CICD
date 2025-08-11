@@ -2,9 +2,12 @@ services:
   web:
     build: .
     ports:
-    - "5000:5000"
+      - "5000:5000"
     environment:
-    -  Flask_ENV=development
+      - FLASK_ENV=development
+      - RIOT_API_KEY=${RIOT_API_KEY}
+    volumes:
+      - .:/app
   nginx:
     image: nginx:alpine
     ports:
