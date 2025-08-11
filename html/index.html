@@ -5,45 +5,121 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>TFT 상위 랭커 기록</title>
     <style>
-      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
-      label { display: inline-block; min-width: 120px; }
-      input { padding: 6px 8px; }
-      button { padding: 8px 12px; cursor: pointer; }
-      pre { background: #111; color: #f3f3f3; padding: 12px; border-radius: 6px; overflow:auto; }
+      :root {
+        --bg: #0b0f17;
+        --panel: #111826;
+        --accent: #00d2ff;
+        --accent2: #7a5cff;
+        --text: #e6f1ff;
+        --text-dim: #a9b6cc;
+        --ok: #00e67a;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0; padding: 0; color: var(--text);
+        background: radial-gradient(1200px 800px at 70% -10%, rgba(122,92,255,0.25), transparent 60%),
+                    radial-gradient(900px 600px at -10% 20%, rgba(0,210,255,0.2), transparent 60%),
+                    var(--bg);
+        font-family: Inter, Pretendard, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      .container {
+        max-width: 980px; margin: 40px auto; padding: 0 20px;
+      }
+      .header {
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .logo { font-weight: 800; letter-spacing: 0.4px; font-size: 22px; }
+      .badge { color: var(--ok); font-size: 12px; opacity: 0.9; }
+
+      .panel {
+        background: linear-gradient(180deg, rgba(17,24,38,0.95), rgba(17,24,38,0.85));
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 14px; padding: 18px; margin-top: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+        backdrop-filter: blur(6px);
+      }
+
+      label { display:block; font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+      input, select { width: 100%; background: #0e1522; color: var(--text); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 10px 12px; }
+      select[multiple] { height: 110px; }
+
+      .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+      .col-4 { grid-column: span 4; }
+      .col-6 { grid-column: span 6; }
+      .col-12 { grid-column: span 12; }
+
+      .btn {
+        display: inline-flex; align-items: center; gap: 10px;
+        padding: 12px 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12);
+        color: #081018; font-weight: 700; letter-spacing: 0.3px;
+        background: linear-gradient(90deg, var(--accent), var(--accent2));
+        box-shadow: 0 8px 18px rgba(122,92,255,0.35);
+        cursor: pointer; user-select: none;
+      }
+      .btn:active { transform: translateY(1px); }
+
+      .muted { color: var(--text-dim); font-size: 12px; }
+      pre { background: #0c1320; color: #cfe3ff; padding: 14px; border-radius: 12px; overflow: auto; border: 1px solid rgba(255,255,255,0.06); }
     </style>
   </head>
   <body>
-    <h1>TFT 상위 랭커 자동 기록 (MVP)</h1>
+    <div class="container">
+      <div class="header">
+        <div class="logo">TFT Top Tracker</div>
+        <div class="badge">LIVE</div>
+      </div>
 
-    <div>
-      <label>플랫폼 리전</label>
-      <input id="region" value="kr" />
-    </div>
-    <div style="margin-top:8px;">
-      <label>플레이어 수</label>
-      <input id="players" type="number" value="50" />
-    </div>
-    <div style="margin-top:8px;">
-      <label>플레이어당 최근 매치</label>
-      <input id="per_player" type="number" value="10" />
-    </div>
+      <div class="panel">
+        <div class="grid">
+          <div class="col-4">
+            <label>플랫폼 리전</label>
+            <input id="region" value="kr" />
+            <div class="muted">예: kr, na1, euw1</div>
+          </div>
+          <div class="col-4">
+            <label>플레이어 수 (최대)</label>
+            <input id="players" type="number" value="60" />
+          </div>
+          <div class="col-4">
+            <label>플레이어당 최근 매치</label>
+            <input id="per_player" type="number" value="10" />
+          </div>
+          <div class="col-12">
+            <label>티어 선택 (복수 선택 가능)</label>
+            <select id="tiers" multiple>
+              <option value="challenger" selected>Challenger</option>
+              <option value="grandmaster" selected>Grandmaster</option>
+              <option value="master" selected>Master</option>
+            </select>
+            <div class="muted">Ctrl/Command + 클릭으로 여러 티어 선택</div>
+          </div>
+          <div class="col-12">
+            <button class="btn" id="collect">수집 실행</button>
+          </div>
+        </div>
+      </div>
 
-    <div style="margin-top:12px;">
-      <button id="collect">수집 실행</button>
+      <div class="panel" style="margin-top: 18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+          <div style="font-weight:700;">결과</div>
+          <div class="muted">최근 실행 상태</div>
+        </div>
+        <pre id="out">수집 결과가 여기에 표시됩니다.</pre>
+      </div>
     </div>
-
-    <h3>결과</h3>
-    <pre id="out"></pre>
 
     <script>
       const out = document.getElementById('out');
       document.getElementById('collect').addEventListener('click', async () => {
         out.textContent = '수집 중...';
         const region = document.getElementById('region').value || 'kr';
-        const players = document.getElementById('players').value || '50';
+        const players = document.getElementById('players').value || '60';
         const per = document.getElementById('per_player').value || '10';
+        const tiersSel = document.getElementById('tiers');
+        const tiers = Array.from(tiersSel.selectedOptions).map(o => o.value).join(',');
         try {
-          const resp = await fetch(`/collect?region=${encodeURIComponent(region)}&players=${encodeURIComponent(players)}&per_player=${encodeURIComponent(per)}`, {method: 'POST'});
+          const resp = await fetch(`/collect?region=${encodeURIComponent(region)}&players=${encodeURIComponent(players)}&per_player=${encodeURIComponent(per)}&tiers=${encodeURIComponent(tiers)}`, {method: 'POST'});
           const data = await resp.json();
           out.textContent = JSON.stringify(data, null, 2);
         } catch (e) {

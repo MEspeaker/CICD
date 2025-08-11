@@ -35,12 +35,29 @@ def _limited_get(url: str, **kwargs):
     return requests.get(url, **kwargs)
 
 
-def get_challenger_entries(platform_region: str) -> List[Dict[str, Any]]:
-    url = f"https://{platform_region}.api.riotgames.com/tft/league/v1/challenger"
+# --- League entries by tier ---
+SUPPORTED_LEAGUE_TIERS = {"challenger", "grandmaster", "master"}
+
+
+def get_league_entries(platform_region: str, tier: str) -> List[Dict[str, Any]]:
+    t = tier.lower().strip()
+    if t not in SUPPORTED_LEAGUE_TIERS:
+        raise ValueError(f"Unsupported tier: {tier}")
+    url = f"https://{platform_region}.api.riotgames.com/tft/league/v1/{t}"
     resp = _limited_get(url, headers=_headers(), timeout=15)
     resp.raise_for_status()
     data = resp.json()
-    return data.get("entries", [])
+    entries = data.get("entries", [])
+    # annotate tier for convenience
+    for e in entries:
+        e.setdefault("_tier", t.upper())
+    return entries
+
+
+# --- Legacy helpers for backward compatibility ---
+
+def get_challenger_entries(platform_region: str) -> List[Dict[str, Any]]:
+    return get_league_entries(platform_region, "challenger")
 
 
 def get_summoner_by_id(platform_region: str, encrypted_summoner_id: str) -> Optional[Dict[str, Any]]:
