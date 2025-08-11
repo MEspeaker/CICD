@@ -88,6 +88,7 @@ jobs:
             LETSENCRYPT_EMAIL=${{ env.LETSENCRYPT_EMAIL }}
             IMAGE_TAG=${{ env.IMAGE_TAG }}
             DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            RIOT_API_KEY=${{ secrets.RIOT_API_KEY }}
             EOT
           EOF
 
@@ -95,7 +96,7 @@ jobs:
       - name: Upload HTTP‑only Nginx template and compose
         run: |
           scp -o StrictHostKeyChecking=no nginx/default.http.conf.template \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/nginx/default.conf.template"
+            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/nginx/default.http.conf.template"
           scp -o StrictHostKeyChecking=no docker-compose.prod.yml \
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/"
 
@@ -178,7 +179,7 @@ jobs:
       - name: Upload HTTPS Nginx template
         run: |
           scp -o StrictHostKeyChecking=no nginx/default.https.conf.template \
-            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/nginx/default.conf.template"
+            ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/nginx/default.http.conf.template"
 
       # ── 8. conf 재생성 & nginx reload ───────────────────────────────────
       - name: Apply HTTPS config & reload nginx
