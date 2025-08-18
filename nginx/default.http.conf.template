@@ -3,13 +3,14 @@ server {
     listen 80;
     server_name ${DOMAIN};
 
-    # Let’s Encrypt web-root
+    # Let's Encrypt web-root (인증서 발급용)
     location ^~ /.well-known/acme-challenge/ {
         root /var/www/certbot;
         allow all;
     }
 
-    # 임시로 Flask 바로 노출
+    # 인증서 발급 단계에서는 Flask 앱으로 직접 서비스
+    # (HTTPS 리다이렉트 하면 인증서 발급 실패)
     location / {
         proxy_pass http://web:5000;
         proxy_set_header Host $host;

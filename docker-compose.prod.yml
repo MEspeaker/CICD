@@ -29,7 +29,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/default.http.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx:/etc/nginx/templates:ro
       - ./certbot/config:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     environment:           # ← 매핑 형식
@@ -38,7 +38,7 @@ services:
       - sh
       - -exc
       - |
-        envsubst '$DOMAIN' < /etc/nginx/templates/default.conf.template \
+        envsubst '$DOMAIN' < /etc/nginx/templates/default.http.conf.template \
           > /etc/nginx/conf.d/default.conf
         exec nginx -g 'daemon off;'
     restart: unless-stopped

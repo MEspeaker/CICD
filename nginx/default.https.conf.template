@@ -15,9 +15,7 @@ server {
 
 # HTTPS 서비스
 server {
-
     listen 443 ssl;
-
     server_name $DOMAIN;
 
     ssl_certificate     /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
