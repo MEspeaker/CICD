@@ -1,24 +1,21 @@
 # HTTP only – issue/renew certificates
 server {
-  listen 80;
-  server_name $DOMAIN;
+    listen 80;
+    server_name ${DOMAIN};
 
-  # ACME http-01 (정적 서빙, 프록시 금지)
-  location ^~ /.well-known/acme-challenge/ {
-    root /var/www/certbot;
-    allow all;
-  }
+    # Let's Encrypt web-root (인증서 발급용)
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        allow all;
+    }
 
-  # 발급 단계에서는 HTTP로 앱 프록시
-  location / {
-    proxy_pass http://web:5000;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-
-    proxy_connect_timeout 10s;
-    proxy_read_timeout 60s;
-    proxy_send_timeout 60s;
-  }
+    # 인증서 발급 단계에서는 Flask 앱으로 직접 서비스
+    # (HTTPS 리다이렉트 하면 인증서 발급 실패)
+    location / {
+        proxy_pass http://web:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 }

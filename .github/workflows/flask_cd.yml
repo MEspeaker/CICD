@@ -81,8 +81,7 @@ jobs:
       # ── 1. 디렉터리 & .env ──────────────────────────────────────────────
       - name: Prepare remote directory & .env
         run: |
-          ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} <<EOF
-            set -euo pipefail
+          ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} <<'EOF'
             mkdir -p "${{ env.REMOTE_DIR }}"/{nginx,certbot/{config,www,logs}}
             cat > "${{ env.REMOTE_DIR }}/.env" <<EOT
             DOMAIN=${{ env.DOMAIN }}
@@ -93,8 +92,8 @@ jobs:
             EOT
           EOF
 
-      # ── 2. HTTP-only 템플릿 & Compose 업로드 ─────────────────────────────
-      - name: Upload HTTP-only Nginx template and compose
+      # ── 2. HTTP‑only 템플릿 & Compose 업로드 ─────────────────────────────
+      - name: Upload HTTP‑only Nginx template and compose
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "\
             mkdir -p '${{ env.REMOTE_DIR }}/nginx' && \
@@ -105,10 +104,9 @@ jobs:
             ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }}:"${{ env.REMOTE_DIR }}/"
 
       # ── 3. 스택 기동 (80) ───────────────────────────────────────────────
-      - name: Start HTTP-only stack
+      - name: Start HTTP‑only stack
         run: |
           ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
-            set -e
             cd '${{ env.REMOTE_DIR }}' &&
             docker compose -f docker-compose.prod.yml down --remove-orphans || true &&
             docker compose -f docker-compose.prod.yml up -d nginx web
@@ -126,6 +124,7 @@ jobs:
             fi
             echo "...waiting HTTP (${i}/24)"; sleep 5
           done
+          
           if [ "$success" = false ]; then
             echo "❌ HTTP verification failed after 24 attempts"
             echo "Deployment failed - service not responding"
@@ -136,7 +135,6 @@ jobs:
       - name: Issue / Renew SSL
         run: |
           ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
-            set -e
             cd '${{ env.REMOTE_DIR }}' &&
             docker compose -f docker-compose.prod.yml run --rm certbot \
               certonly --webroot -w /var/www/certbot \
@@ -148,8 +146,7 @@ jobs:
       # ── 6. SSL helper 파일 확보(+디렉터리 보장) ──────────────────────────
       - name: Provide ssl helper files for nginx
         run: |
-          ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} <<EOF
-            set -e
+          ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} << 'EOF'
             cd '${{ env.REMOTE_DIR }}'
             docker compose -f docker-compose.prod.yml run --rm --entrypoint "" certbot sh -euxc '
               OPTIONS=/etc/letsencrypt/options-ssl-nginx.conf
@@ -188,6 +185,8 @@ jobs:
             '
           EOF
 
+
+
       # ── 7. HTTPS 템플릿 업로드 ───────────────────────────────────────────
       - name: Upload HTTPS Nginx template
         run: |
@@ -199,35 +198,33 @@ jobs:
       # ── 8. conf 재생성 & nginx reload ───────────────────────────────────
       - name: Apply HTTPS config & reload nginx
         run: |
-          ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} <<EOF
-            set -e
+          ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} << 'EOF'
             cd '${{ env.REMOTE_DIR }}' &&
             echo "=== Debug: Checking template files ===" &&
             ls -la nginx/ &&
             echo "=== Debug: Current template content ===" &&
             cat nginx/default.http.conf.template &&
             echo "=== Debug: Nginx container process ===" &&
-            docker compose -f docker-compose.prod.yml exec nginx sh -c "
-             echo \"Template files in container:\" &&
+            docker compose -f docker-compose.prod.yml exec nginx sh -c '
+             echo "Template files in container:" &&
              ls -la /etc/nginx/templates/ &&
-             echo \"Generating config...\" &&
-             envsubst '\$DOMAIN' \
+             echo "Generating config..." &&
+             envsubst '\''$DOMAIN'\'' \
                < /etc/nginx/templates/default.http.conf.template \
                > /etc/nginx/conf.d/default.conf &&
-             echo \"Generated config:\" &&
-             head -n 50 /etc/nginx/conf.d/default.conf &&
-             echo \"Testing nginx config...\" &&
+             echo "Generated config:" &&
+             cat /etc/nginx/conf.d/default.conf &&
+             echo "Testing nginx config..." &&
              nginx -t &&
-             echo \"Reloading nginx...\" &&
+             echo "Reloading nginx..." &&
              nginx -s reload
-           "
+           '
           EOF
 
       # ── 9. 최신 이미지 pull & 전체 스택 ─────────────────────────────────
       - name: Deploy latest stack
         run: |
           ssh ${{ secrets.GCP_USER }}@${{ secrets.GCP_HOST }} "
-            set -e
             cd '${{ env.REMOTE_DIR }}' &&
             docker compose -f docker-compose.prod.yml pull &&
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
@@ -237,17 +234,17 @@ jobs:
       - name: Verify HTTPS
         run: |
           success=false
-          for i in {1..30}; do
+          for i in {1..12}; do
             if curl -sSf -m 5 https://${{ env.DOMAIN }} >/dev/null 2>&1; then
               echo "HTTPS OK"
               success=true
               break
             fi
-            echo "...waiting HTTPS (${i}/30)"; sleep 6
+            echo "...waiting HTTPS (${i}/12)"; sleep 10
           done
-
+          
           if [ "$success" = false ]; then
-            echo "❌ HTTPS verification failed"
+            echo "❌ HTTPS verification failed after 12 attempts"
             echo "Checking HTTP fallback..."
             if curl -sSf -m 5 http://${{ env.DOMAIN }} >/dev/null 2>&1; then
               echo "⚠️  HTTP is working but HTTPS failed - SSL configuration issue"
@@ -278,4 +275,3 @@ jobs:
       - name: Failure notice
         if: failure()
         run: echo "  Deployment to ${{ secrets.DOMAIN }} failed"
-
