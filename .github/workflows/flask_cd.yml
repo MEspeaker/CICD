@@ -115,12 +115,21 @@ jobs:
       # ── 4. HTTP 응답 대기 ───────────────────────────────────────────────
       - name: Wait for HTTP
         run: |
+          success=false
           for i in {1..24}; do
             if curl -sSf -m 5 http://${{ env.DOMAIN }} >/dev/null 2>&1; then
-              echo "HTTP OK"; break
+              echo "HTTP OK"
+              success=true
+              break
             fi
             echo "...waiting HTTP (${i}/24)"; sleep 5
           done
+          
+          if [ "$success" = false ]; then
+            echo "❌ HTTP verification failed after 24 attempts"
+            echo "Deployment failed - service not responding"
+            exit 1
+          fi
 
       # ── 5. 인증서 발급/갱신 ──────────────────────────────────────────────
       - name: Issue / Renew SSL
@@ -212,12 +221,27 @@ jobs:
       # ── 10. HTTPS 검증 ──────────────────────────────────────────────────
       - name: Verify HTTPS
         run: |
+          success=false
           for i in {1..12}; do
             if curl -sSf -m 5 https://${{ env.DOMAIN }} >/dev/null 2>&1; then
-              echo "HTTPS OK"; break
+              echo "HTTPS OK"
+              success=true
+              break
             fi
             echo "...waiting HTTPS (${i}/12)"; sleep 10
           done
+          
+          if [ "$success" = false ]; then
+            echo "❌ HTTPS verification failed after 12 attempts"
+            echo "Checking HTTP fallback..."
+            if curl -sSf -m 5 http://${{ env.DOMAIN }} >/dev/null 2>&1; then
+              echo "⚠️  HTTP is working but HTTPS failed - SSL configuration issue"
+              exit 1
+            else
+              echo "❌ Both HTTP and HTTPS failed - deployment failure"
+              exit 1
+            fi
+          fi
 
       # ── 11. 오래된 이미지 정리 ──────────────────────────────────────────
       - name: Prune images
