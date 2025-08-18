@@ -17,14 +17,10 @@ def _iter_entries(platform_region: str, tiers: Iterable[str]) -> List[Dict[str, 
     combined: List[Dict[str, Any]] = []
     for t in tiers:
         try:
-            print(f"[DEBUG] Fetching {t} entries for {platform_region}...")
             entries = get_league_entries(platform_region, t)
-            print(f"[DEBUG] Got {len(entries)} entries for {t}")
             combined.extend(entries)
-        except Exception as e:
-            print(f"[ERROR] Failed to get {t} entries: {e}")
+        except Exception:
             continue
-    print(f"[DEBUG] Total entries collected: {len(combined)}")
     return combined
 
 
@@ -38,10 +34,8 @@ def collect_top_matches(
     seen_match_ids: Set[str] = set()
 
     # 1) 최신 상위 리그(다중 tier) 목록
-    print(f"[DEBUG] Starting collection for {platform_region}, tiers: {list(tiers)}")
     entries = _iter_entries(platform_region, tiers)
     entries = sorted(entries, key=lambda e: e.get("leaguePoints", 0), reverse=True)[:max_players]
-    print(f"[DEBUG] Selected top {len(entries)} players")
 
     # 2) 소환사 PUUID 수집/캐시
     cached = {s.get("id"): s for s in load_summoners()}
