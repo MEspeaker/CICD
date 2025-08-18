@@ -1,11 +1,9 @@
-
 services:
   web:
     image: ${DOCKERHUB_USERNAME}/myflask:latest
-    environment:           # ← 컨테이너 내부 환경변수
+    environment:
       FLASK_ENV: production
       RIOT_API_KEY: ${RIOT_API_KEY}
-      # 아래 값들은 선택 (스케줄러 사용 시)
       COLLECT_INTERVAL_SEC: ${COLLECT_INTERVAL_SEC}
       COLLECT_REGION: ${COLLECT_REGION}
       COLLECT_PLAYERS: ${COLLECT_PLAYERS}
@@ -13,14 +11,14 @@ services:
     expose:
       - "5000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket,sys; s=socket.socket(); s.settimeout(1); s.connect(('127.0.0.1',5000)); s.close(); sys.exit(0)"]
+      # HTTP 200로 체크
+      test: ["CMD", "sh", "-c", "wget -qO- http://127.0.0.1:5000/ || wget -qO- http://127.0.0.1:5000"]
       interval: 10s
       timeout: 3s
       retries: 10
     restart: unless-stopped
 
   nginx:
-    container_name: nginx
     image: nginx:alpine
     depends_on:
       web:
@@ -30,16 +28,16 @@ services:
       - "443:443"
     volumes:
       - ./nginx:/etc/nginx/templates:ro
-      - ./certbot/config:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    environment:           # ← 매핑 형식
+      - ./certbot/config:/etc/letsencrypt          # ← 바인드 유지(OK)
+      - ./certbot/www:/var/www/certbot             # ← 바인드 유지(OK)
+      # 권장: letsencrypt:/etc/letsencrypt, certbot-www:/var/www/certbot (named volume)
+    environment:
       DOMAIN: ${DOMAIN}
     entrypoint:
       - sh
       - -exc
       - |
-        envsubst '$DOMAIN' < /etc/nginx/templates/default.http.conf.template \
-          > /etc/nginx/conf.d/default.conf
+        envsubst '$DOMAIN' < /etc/nginx/templates/default.http.conf.template > /etc/nginx/conf.d/default.conf
         exec nginx -g 'daemon off;'
     restart: unless-stopped
 
@@ -73,8 +71,7 @@ services:
              done"
     restart: unless-stopped
 
-volumes:
-  certbot-config:
-    driver: local
-  certbot-www:
-    driver: local
+# 권장(선택): named volume 사용시
+# volumes:
+#   letsencrypt:
+#   certbot-www:
