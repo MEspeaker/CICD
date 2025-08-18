@@ -18,16 +18,9 @@ server {
     listen 443 ssl;
     server_name $DOMAIN;
 
-    # SSL 인증서 설정
+    # SSL 인증서 설정 (최소한의 설정)
     ssl_certificate     /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
-    
-    # 기본 SSL 보안 설정
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384;
-    ssl_prefer_server_ciphers off;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 1h;
 
     location / {
         proxy_pass http://web:5000;
