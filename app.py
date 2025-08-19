@@ -23,9 +23,8 @@ def _maybe_start_scheduler_once():
     else:
         app.logger.info("[scheduler] not started (COLLECT_INTERVAL_SEC not set)")
 
-@app.before_first_request
-def _boot_scheduler():
-    _maybe_start_scheduler_once()
+# Flask 2.2+ 호환성을 위해 before_first_request 제거
+# 대신 애플리케이션 시작 시 직접 호출
 
 # --- 정적/루트 ---
 @app.route("/")
@@ -155,7 +154,8 @@ def get_matches_by_tier(tier: str):
     return jsonify({"matches": matches, "total": len(matches), "tier": want})
 
 if __name__ == "__main__":
-    # 개발 서버에서 리로더로 인한 중복 기동 방지
-    _maybe_start_scheduler_once()
+    # 스케줄러 시작 (Flask 2.2+ 호환)
+    with app.app_context():
+        _maybe_start_scheduler_once()
     app.run(host="0.0.0.0", port=5000, use_reloader=False)
 
