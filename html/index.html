@@ -26,26 +26,17 @@
         font-family: Inter, Pretendard, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
         line-height: 1.6;
       }
-      .container {
-        max-width: 1200px; margin: 40px auto; padding: 0 20px;
-      }
-      .header {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 30px;
-      }
-      .logo { 
-        font-weight: 800; letter-spacing: 0.4px; font-size: 28px; 
-      }
-      .status {
-        display: flex; align-items: center; gap: 12px;
-      }
-      .badge { 
-        color: var(--ok); font-size: 12px; opacity: 0.9; 
-        background: rgba(0, 230, 122, 0.1);
-        padding: 4px 8px;
-        border-radius: 6px;
+      .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; }
+      .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
+      .logo { font-weight: 800; letter-spacing: 0.4px; font-size: 28px; }
+      .status { display: flex; align-items: center; gap: 12px; }
+      .badge {
+        color: var(--ok); font-size: 12px; opacity: 0.9;
+        background: rgba(0, 230, 122, 0.1); padding: 4px 8px; border-radius: 6px;
         border: 1px solid rgba(0, 230, 122, 0.2);
       }
+      .badge.warn { color: var(--warn); background: rgba(255,167,38,0.1); border-color: rgba(255,167,38,0.2); }
+      .badge.err  { color: var(--error); background: rgba(244,67,54,0.1); border-color: rgba(244,67,54,0.2); }
       .refresh-btn {
         background: rgba(255, 255, 255, 0.1);
         border: 1px solid rgba(255, 255, 255, 0.2);
@@ -56,9 +47,7 @@
         font-size: 12px;
         transition: all 0.2s;
       }
-      .refresh-btn:hover {
-        background: rgba(255, 255, 255, 0.2);
-      }
+      .refresh-btn:hover { background: rgba(255, 255, 255, 0.2); }
 
       .panel {
         background: linear-gradient(180deg, rgba(17,24,38,0.95), rgba(17,24,38,0.85));
@@ -69,124 +58,55 @@
       }
 
       .stats-grid {
-        display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-        gap: 20px;
-        margin-bottom: 30px;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px; margin-bottom: 30px;
       }
       .stat-card {
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 20px;
-        text-align: center;
+        border-radius: 12px; padding: 20px; text-align: center;
       }
-      .stat-number {
-        font-size: 32px;
-        font-weight: 700;
-        color: var(--accent);
-        display: block;
-        margin-bottom: 8px;
-      }
-      .stat-label {
-        font-size: 14px;
-        color: var(--text-dim);
-        font-weight: 500;
-      }
+      .stat-number { font-size: 32px; font-weight: 700; color: var(--accent); display: block; margin-bottom: 8px; }
+      .stat-label { font-size: 14px; color: var(--text-dim); font-weight: 500; }
 
-      .section-title {
-        font-size: 20px;
-        font-weight: 700;
-        margin-bottom: 16px;
-        color: var(--text);
-      }
+      .section-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
 
-      .tier-filter {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-      }
+      .tier-filter { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
       .tier-btn {
-        padding: 8px 16px;
-        border-radius: 8px;
+        padding: 8px 16px; border-radius: 8px;
         border: 1px solid rgba(255, 255, 255, 0.2);
         background: rgba(255, 255, 255, 0.05);
-        color: var(--text-dim);
-        cursor: pointer;
-        font-size: 14px;
-        transition: all 0.2s;
+        color: var(--text-dim); cursor: pointer; font-size: 14px; transition: all 0.2s;
       }
       .tier-btn.active {
         background: linear-gradient(90deg, var(--accent), var(--accent2));
-        color: #081018;
-        border-color: transparent;
+        color: #081018; border-color: transparent;
       }
-      .tier-btn:hover:not(.active) {
-        background: rgba(255, 255, 255, 0.1);
-        color: var(--text);
-      }
+      .tier-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.1); color: var(--text); }
 
       .matches-container {
-        max-height: 600px;
-        overflow-y: auto;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
+        max-height: 600px; overflow-y: auto;
+        border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
         background: rgba(255, 255, 255, 0.02);
       }
       .match-item {
-        padding: 16px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: background 0.2s;
+        padding: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex; justify-content: space-between; align-items: center; transition: background 0.2s;
       }
-      .match-item:hover {
-        background: rgba(255, 255, 255, 0.05);
-      }
-      .match-item:last-child {
-        border-bottom: none;
-      }
-      .match-info {
-        flex: 1;
-      }
-      .match-id {
-        font-family: 'Monaco', 'Menlo', monospace;
-        font-size: 12px;
-        color: var(--text-dim);
-        margin-bottom: 4px;
-      }
-      .match-details {
-        font-size: 14px;
-        color: var(--text);
-      }
-      .match-time {
-        font-size: 12px;
-        color: var(--text-dim);
-        text-align: right;
-      }
+      .match-item:hover { background: rgba(255, 255, 255, 0.05); }
+      .match-item:last-child { border-bottom: none; }
+      .match-info { flex: 1; }
+      .match-id { font-family: 'Monaco','Menlo',monospace; font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+      .match-details { font-size: 14px; color: var(--text); }
+      .match-time { font-size: 12px; color: var(--text-dim); text-align: right; }
 
-      .loading {
-        text-align: center;
-        padding: 40px;
-        color: var(--text-dim);
-        font-style: italic;
-      }
+      .loading { text-align: center; padding: 40px; color: var(--text-dim); font-style: italic; }
       .error {
-        color: var(--error);
-        text-align: center;
-        padding: 20px;
-        background: rgba(244, 67, 54, 0.1);
-        border: 1px solid rgba(244, 67, 54, 0.2);
-        border-radius: 8px;
-        margin: 20px 0;
+        color: var(--error); text-align: center; padding: 20px;
+        background: rgba(244, 67, 54, 0.1); border: 1px solid rgba(244, 67, 54, 0.2);
+        border-radius: 8px; margin: 20px 0;
       }
-      .empty {
-        text-align: center;
-        padding: 40px;
-        color: var(--text-dim);
-      }
+      .empty { text-align: center; padding: 40px; color: var(--text-dim); }
 
       @media (max-width: 768px) {
         .container { padding: 0 16px; }
@@ -201,7 +121,7 @@
       <div class="header">
         <div class="logo">TFT Top Tracker</div>
         <div class="status">
-          <div class="badge" id="status-badge">자동 수집 중</div>
+          <div class="badge" id="status-badge">상태 확인 중…</div>
           <button class="refresh-btn" id="refresh-btn">🔄 새로고침</button>
         </div>
       </div>
@@ -223,7 +143,7 @@
             <span class="stat-label">최근 업데이트</span>
           </div>
           <div class="stat-card">
-            <span class="stat-number" id="collection-status">🔄</span>
+            <span class="stat-number" id="collection-status">-</span>
             <span class="stat-label">수집 상태</span>
           </div>
         </div>
@@ -232,10 +152,9 @@
       <!-- 티어별 매치 조회 -->
       <div class="panel">
         <div class="section-title">티어별 매치 기록</div>
-        
         <div class="tier-filter" id="tier-filter">
           <div class="tier-btn active" data-tier="all">전체</div>
-          <!-- 티어 버튼들이 동적으로 추가됩니다 -->
+          <!-- 동적 티어 버튼 -->
         </div>
 
         <div id="matches-section">
@@ -246,151 +165,188 @@
 
     <script>
       let currentTier = 'all';
-      let allStats = {};
-      let allMatches = [];
+      let allMatchesCache = []; // '전체'에서 써먹는 캐시
 
-      // 페이지 로드 시 데이터 가져오기
-      document.addEventListener('DOMContentLoaded', function() {
-        loadDashboardData();
-        
-        // 새로고침 버튼
-        document.getElementById('refresh-btn').addEventListener('click', function() {
-          this.textContent = '🔄 로딩중...';
-          loadDashboardData();
+      document.addEventListener('DOMContentLoaded', () => {
+        bootstrap();
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+          document.getElementById('refresh-btn').textContent = '🔄 로딩중...';
+          bootstrap().finally(() => {
+            document.getElementById('refresh-btn').textContent = '🔄 새로고침';
+          });
         });
+        // 5분마다 자동 새로고침
+        setInterval(bootstrap, 5 * 60 * 1000);
       });
 
-      async function loadDashboardData() {
+      async function bootstrap() {
         try {
-          // 통계 데이터 로드
-          const statsResponse = await fetch('/api/stats');
-          const stats = await statsResponse.json();
+          // 1) 상태/통계
+          const [stats, tiers] = await Promise.all([
+            fetchJson('/api/stats'),
+            fetchJson('/api/tiers').catch(() => ({ tiers: ['CHALLENGER','GRANDMASTER','MASTER'] }))
+          ]);
+
           updateStatsDisplay(stats);
-          
-          // 매치 데이터 로드
-          const matchesResponse = await fetch('/api/matches');
-          const matchesData = await matchesResponse.json();
-          allMatches = matchesData.matches || [];
-          
-          // 티어 필터 업데이트
-          updateTierFilter(stats.matches_by_tier || {});
-          
-          // 매치 표시
-          displayMatches(allMatches);
-          
-        } catch (error) {
-          console.error('데이터 로드 오류:', error);
-          document.getElementById('matches-section').innerHTML = 
-            '<div class="error">데이터를 불러오는 중 오류가 발생했습니다: ' + error.message + '</div>';
-        } finally {
-          document.getElementById('refresh-btn').textContent = '🔄 새로고침';
+          updateStatusBadge(stats);
+          buildTierFilter(tiers.tiers, stats.matches_by_tier || {});
+
+          // 2) 현재 선택된 티어 데이터 로드
+          await loadMatchesForCurrentTier();
+
+        } catch (e) {
+          console.error(e);
+          showError('초기 데이터 로드에 실패했습니다: ' + (e.message || e));
+        }
+      }
+
+      async function loadMatchesForCurrentTier() {
+        const container = document.getElementById('matches-section');
+        container.innerHTML = '<div class="loading">매치 데이터를 불러오는 중...</div>';
+        try {
+          let matches = [];
+          if (currentTier === 'all') {
+            const data = await fetchJson('/api/matches');
+            matches = data.matches || [];
+            allMatchesCache = matches;
+          } else {
+            const data = await fetchJson('/api/matches/by-tier/' + encodeURIComponent(currentTier));
+            matches = data.matches || [];
+          }
+          displayMatches(matches);
+        } catch (e) {
+          console.error(e);
+          showError('매치 데이터 로드에 실패했습니다: ' + (e.message || e));
         }
       }
 
       function updateStatsDisplay(stats) {
-        document.getElementById('total-matches').textContent = stats.total_matches || 0;
-        document.getElementById('total-summoners').textContent = stats.total_summoners || 0;
-        
+        const total = stats.total_matches || 0;
+        const summoners = stats.total_summoners || 0;
+        document.getElementById('total-matches').textContent = total;
+        document.getElementById('total-summoners').textContent = summoners;
+
         if (stats.last_updated) {
-          const date = new Date(stats.last_updated);
-          document.getElementById('last-updated').textContent = 
-            date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          const d = new Date(stats.last_updated);
+          document.getElementById('last-updated').textContent =
+            d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
         } else {
           document.getElementById('last-updated').textContent = '없음';
         }
       }
 
-      function updateTierFilter(tierCounts) {
-        const filterContainer = document.getElementById('tier-filter');
-        
-        // 전체 버튼 유지, 나머지 제거
-        const allBtn = filterContainer.querySelector('[data-tier="all"]');
-        filterContainer.innerHTML = '';
-        filterContainer.appendChild(allBtn);
-        
-        // 티어별 버튼 추가
-        Object.keys(tierCounts).forEach(tier => {
-          if (tier !== 'UNRANKED') {
-            const btn = document.createElement('div');
-            btn.className = 'tier-btn';
-            btn.dataset.tier = tier;
-            btn.textContent = `${tier} (${tierCounts[tier]})`;
-            btn.addEventListener('click', () => filterByTier(tier));
-            filterContainer.appendChild(btn);
+      function updateStatusBadge(stats) {
+        const badge = document.getElementById('status-badge');
+        if (stats.last_updated) {
+          const ageMs = Date.now() - stats.last_updated;
+          if (ageMs < 6 * 60 * 1000) { // 6분 이내면 '수집 중'으로 판단
+            badge.classList.remove('warn','err');
+            badge.textContent = '자동 수집 중';
+          } else {
+            badge.classList.remove('err');
+            badge.classList.add('warn');
+            badge.textContent = '최근 갱신 지연';
           }
-        });
-        
-        // 전체 버튼 이벤트
-        allBtn.addEventListener('click', () => filterByTier('all'));
+        } else {
+          badge.classList.remove('warn');
+          badge.classList.add('err');
+          badge.textContent = '데이터 없음';
+        }
+        document.getElementById('collection-status').textContent = badge.textContent;
       }
 
-      function filterByTier(tier) {
-        currentTier = tier;
-        
-        // 활성 버튼 업데이트
-        document.querySelectorAll('.tier-btn').forEach(btn => {
-          btn.classList.toggle('active', btn.dataset.tier === tier);
+      function buildTierFilter(tiers, tierCounts) {
+        const box = document.getElementById('tier-filter');
+        // '전체' 버튼 보존
+        const allBtn = box.querySelector('[data-tier="all"]');
+        box.innerHTML = '';
+        box.appendChild(allBtn);
+        allBtn.onclick = () => setTier('all');
+
+        // 티어 버튼 생성 (서버가 주는 순서 그대로)
+        tiers.forEach(t => {
+          const cnt = tierCounts?.[t]?.toString() || '';
+          const btn = document.createElement('div');
+          btn.className = 'tier-btn';
+          btn.dataset.tier = t;
+          btn.textContent = cnt ? `${t} (${cnt})` : t;
+          btn.onclick = () => setTier(t);
+          if (currentTier === t) btn.classList.add('active');
+          box.appendChild(btn);
         });
-        
-        if (tier === 'all') {
-          displayMatches(allMatches);
-        } else {
-          // 특정 티어 매치 필터링
-          const filteredMatches = allMatches.filter(match => {
-            if (!match.info || !match.info.participants) return false;
-            return match.info.participants.some(p => 
-              p.tier && p.tier.toUpperCase() === tier.toUpperCase()
-            );
-          });
-          displayMatches(filteredMatches);
-        }
+
+        // active 반영
+        setActiveButton(currentTier);
+      }
+
+      function setTier(tier) {
+        currentTier = tier;
+        setActiveButton(tier);
+        loadMatchesForCurrentTier();
+      }
+
+      function setActiveButton(tier) {
+        document.querySelectorAll('.tier-btn').forEach(b => {
+          b.classList.toggle('active', b.dataset.tier === tier);
+        });
       }
 
       function displayMatches(matches) {
         const container = document.getElementById('matches-section');
-        
         if (!matches || matches.length === 0) {
           container.innerHTML = '<div class="empty">매치 데이터가 없습니다.</div>';
           return;
         }
 
-        const matchesHtml = matches.slice(0, 50).map(match => {
-          const gameTime = match.info?.gameCreation ? 
-            new Date(match.info.gameCreation).toLocaleString('ko-KR') : '알 수 없음';
-          
-          const participants = match.info?.participants || [];
-          const tierInfo = participants
+        const html = matches.slice(0, 50).map(m => {
+          const timeStr = m.info?.gameCreation
+            ? new Date(m.info.gameCreation).toLocaleString('ko-KR')
+            : '알 수 없음';
+          const parts = m.info?.participants || [];
+          const tierInfo = parts
             .map(p => p.tier)
-            .filter(t => t && t !== 'UNRANKED')
+            .filter(Boolean)
+            .filter(t => t !== 'UNRANKED')
             .slice(0, 3)
             .join(', ') || '티어 정보 없음';
+          const matchId = m.metadata?.match_id || '알 수 없음';
 
           return `
             <div class="match-item">
               <div class="match-info">
-                <div class="match-id">매치 ID: ${match.metadata?.matchId || '알 수 없음'}</div>
+                <div class="match-id">매치 ID: ${matchId}</div>
                 <div class="match-details">참가자 티어: ${tierInfo}</div>
               </div>
-              <div class="match-time">${gameTime}</div>
+              <div class="match-time">${timeStr}</div>
             </div>
           `;
         }).join('');
 
         container.innerHTML = `
           <div class="matches-container">
-            ${matchesHtml}
+            ${html}
           </div>
         `;
 
         if (matches.length > 50) {
-          container.innerHTML += `<div style="text-align: center; padding: 16px; color: var(--text-dim);">
-            ${matches.length}개 중 최근 50개 표시
-          </div>`;
+          container.innerHTML += `
+            <div style="text-align:center; padding:16px; color:var(--text-dim);">
+              총 ${matches.length}개 중 최근 50개 표시
+            </div>
+          `;
         }
       }
 
-      // 5분마다 자동 새로고침
-      setInterval(loadDashboardData, 5 * 60 * 1000);
+      function showError(msg) {
+        document.getElementById('matches-section').innerHTML =
+          `<div class="error">${msg}</div>`;
+      }
+
+      async function fetchJson(url) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        return await r.json();
+      }
     </script>
   </body>
 </html>
