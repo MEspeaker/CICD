@@ -325,70 +325,60 @@ def get_matches_summary():
     return jsonify({"matches": out, "total": len(matches)})
 
 @app.route("/api/admin/backfill-names", methods=["POST"])
-def backfill_names():
+def admin_backfill_names():
     """
-    matches.jsonl에서 발견한 puuid 중, summoners.json에 이름이 비어 있는 항목을
-    Riot API로 조회하여 이름을 채웁니다. (최대 limit명)
-    사용 예: curl -X POST "https://.../api/admin/backfill-names?limit=30"
+    캐시(summoners.json)에 저장된 puuid들 중 name/gameName/tagLine이 비어있는 항목을 채운다.
+    쿼리:
+      - limit (기본 50)
+      - region (기본 'kr')
     """
-    limit = int(request.args.get("limit", "30"))
-    limit = max(1, min(100, limit))
+    from riot_client import get_summoner_by_puuid, get_account_by_puuid
+    from storage import load_summoners, save_summoners
 
-    # 지연 임포트 (연쇄 ImportError 방지)
     try:
-        from riot_client import get_summoner_by_puuid
-        from storage import load_summoners, save_summoners
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"import failed: {e}"}), 500
+        limit = int(request.args.get("limit", "50"))
+    except ValueError:
+        limit = 50
+    region = request.args.get("region", "kr")
 
-    # 현재 캐시 로드
-    cache = { (s.get("puuid") or ""): s for s in (load_summoners() or []) if isinstance(s, dict) }
-    need: List[str] = []
+    cache_list = [s for s in load_summoners() if isinstance(s, dict)]
+    by_puuid = {s.get("puuid"): s for s in cache_list if s.get("puuid")}
+    targets: List[str] = []
+    for p, rec in by_puuid.items():
+        if not p:
+            continue
+        has_name = bool(rec.get("name"))
+        has_riot_id = bool(rec.get("gameName")) and bool(rec.get("tagLine"))
+        if not (has_name or has_riot_id):
+            targets.append(p)
 
-    # matches.jsonl에서 puuid 수집
-    try:
-        if MATCHES_JSONL.exists():
-            with MATCHES_JSONL.open("r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line: continue
-                    try:
-                        m = json.loads(line)
-                    except Exception:
-                        continue
-                    parts = (m.get("info", {}) or {}).get("participants", []) or []
-                    for p in parts:
-                        puuid = p.get("puuid")
-                        if not puuid: continue
-                        rec = cache.get(puuid)
-                        has_name = bool(rec and (rec.get("name") or (rec.get("gameName") and rec.get("tagLine"))))
-                        if not has_name and puuid not in need:
-                            need.append(puuid)
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
+    attempted = 0
     fetched = 0
-    out_errors = []
-    for puuid in need[:limit]:
+    errors: List[str] = []
+
+    for puuid in targets[:limit]:
+        attempted += 1
         try:
-            sm = get_summoner_by_puuid(request.args.get("region","kr") or "kr", puuid)
+            sm = get_summoner_by_puuid(region, puuid) or {}
+            if not sm.get("name") and (not sm.get("gameName") or not sm.get("tagLine")):
+                acct = get_account_by_puuid(region, puuid) or {}
+                if acct.get("gameName") and acct.get("tagLine"):
+                    sm["gameName"] = acct["gameName"]
+                    sm["tagLine"]  = acct["tagLine"]
             if sm:
-                # 캐시에 병합/저장
-                old = cache.get(puuid) or {}
-                old.update(sm)
-                cache[puuid] = old
+                old = by_puuid.get(puuid) or {"puuid": puuid}
+                old.update(sm)  # name/gameName/tagLine/tier 등 병합
+                by_puuid[puuid] = old
                 fetched += 1
         except Exception as e:
-            out_errors.append(str(e))
+            errors.append(str(e))
 
-    # 저장
     try:
-        from storage import save_summoners
-        save_summoners(list(cache.values()))
+        save_summoners(list(by_puuid.values()))
     except Exception as e:
-        out_errors.append(f"save_summoners: {e}")
+        errors.append(f"save_summoners: {e}")
 
-    return jsonify({"ok": True, "attempted": min(limit, len(need)), "fetched": fetched, "errors": out_errors})
+    return jsonify({"ok": True, "attempted": attempted, "fetched": fetched, "errors": errors})
 
 
 # --- 엔트리포인트 ---
