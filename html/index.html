@@ -318,7 +318,6 @@
                   : '';
                 const unitsShort = (p.core_units && p.core_units.length)
                   ? ` · 유닛: ${p.core_units.map(u => `${u.name || ''}${u.star ? `★${u.star}` : ''}`).join(', ')}`
-                    .join(', ')
                   : '';
                 return `<div class="player-line">
                           ${p.placement ? `${p.placement}위` : '-'} · ${escapeHtml(p.name || '')}
