@@ -130,6 +130,7 @@ def collect_top_matches(
     # 3) 각 플레이어 최근 매치 ID 가져오기
     all_new_match_ids: List[str] = []
     seen_this_run: Set[str] = set()
+    mid_source: Dict[str, str] = {}  # ← 매치ID -> 수집 원본 puuid
 
     for puuid in puuids:
         try:
@@ -138,22 +139,36 @@ def collect_top_matches(
                 if (mid not in existing_ids) and (mid not in seen_this_run):
                     all_new_match_ids.append(mid)
                     seen_this_run.add(mid)
+                    mid_source[mid] = puuid             # ← 핵심
         except Exception as e:
             print(f"[collector] get_match_ids fail for {puuid[:8]}…: {e}", file=sys.stderr)
             continue
 
-    # 4) 매치 상세 저장 (participants에 tier 주석)
+    # 4) 매치 상세 저장 (participants에 tier 주석 + 수집 원본 주석)
     matches: List[Dict[str, Any]] = []
     for mid in all_new_match_ids:
         try:
             match = get_match(platform_region, mid)
             info = match.get("info", {}) or {}
             parts = info.get("participants", []) or []
+
+            # 수집 원본 주석 (누구로부터 이 매치를 수집했는지)
+            src_puuid = mid_source.get(mid)
+            src_tier = puuid_to_tier.get(src_puuid, "UNRANKED") if src_puuid else None
+            info["_collected_for"] = {
+                "puuid": src_puuid,
+                "tier": src_tier,
+            }
+
             for p in parts:
                 p_puuid = p.get("puuid")
                 if p_puuid:
-                    # 엔트리에서 수집한 puuid만이라도 확실히 주석 주입
+                    # 엔트리에서 수집한 플레이어면 tier 주입
                     p["tier"] = puuid_to_tier.get(p_puuid, (p.get("tier") or "UNRANKED"))
+                    # 이 참가자가 수집 원본이면 표시
+                    if src_puuid and p_puuid == src_puuid:
+                        p["is_source"] = True
+
             match["info"] = info
             matches.append(match)
         except Exception as e:

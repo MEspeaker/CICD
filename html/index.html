@@ -71,19 +71,6 @@
 
       .section-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; color: var(--text); }
 
-      .tier-filter { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-      .tier-btn {
-        padding: 8px 16px; border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        background: rgba(255, 255, 255, 0.05);
-        color: var(--text-dim); cursor: pointer; font-size: 14px; transition: all 0.2s;
-      }
-      .tier-btn.active {
-        background: linear-gradient(90deg, var(--accent), var(--accent2));
-        color: #081018; border-color: transparent;
-      }
-      .tier-btn:hover:not(.active) { background: rgba(255, 255, 255, 0.1); color: var(--text); }
-
       .matches-container {
         max-height: 600px; overflow-y: auto;
         border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
@@ -114,11 +101,15 @@
       .player-line { font-size:12px; color:var(--text-dim); white-space:normal; word-break:break-all; }
       .detail-player { margin-bottom: 10px; font-size: 13px; white-space:normal; word-break:break-all; }
 
+      /* 수집 대상 강조 */
+      .source-badge { display:inline-block; margin-left:6px; padding:2px 6px; font-size:11px; border-radius:6px;
+        background: rgba(0,210,255,0.12); border:1px solid rgba(0,210,255,0.25); color:#bfefff; }
+      .source-line { color:#cfe9ff; }
+
       @media (max-width: 768px) {
         .container { padding: 0 16px; }
         .stats-grid { grid-template-columns: repeat(2, 1fr); }
         .header { flex-direction: column; gap: 16px; }
-        .tier-filter { justify-content: center; }
       }
     </style>
   </head>
@@ -155,14 +146,9 @@
         </div>
       </div>
 
-      <!-- 티어별 매치 조회 -->
+      <!-- 매치 요약 -->
       <div class="panel">
-        <div class="section-title">티어별 매치 기록</div>
-        <div class="tier-filter" id="tier-filter">
-          <div class="tier-btn active" data-tier="all">전체</div>
-          <!-- 동적 티어 버튼 -->
-        </div>
-
+        <div class="section-title">최근 매치 요약</div>
         <div id="matches-section">
           <div class="loading">매치 데이터를 불러오는 중...</div>
         </div>
@@ -170,15 +156,12 @@
     </div>
 
     <script>
-      let currentTier = 'all';
-
       document.addEventListener('DOMContentLoaded', () => {
         bootstrap();
-        document.getElementById('refresh-btn').addEventListener('click', () => {
-          document.getElementById('refresh-btn').textContent = '🔄 로딩중...';
-          bootstrap().finally(() => {
-            document.getElementById('refresh-btn').textContent = '🔄 새로고침';
-          });
+        const btn = document.getElementById('refresh-btn');
+        btn.addEventListener('click', () => {
+          btn.textContent = '🔄 로딩중...';
+          bootstrap().finally(() => btn.textContent = '🔄 새로고침');
         });
         // 5분마다 자동 새로고침
         setInterval(bootstrap, 5 * 60 * 1000);
@@ -186,39 +169,16 @@
 
       async function bootstrap() {
         try {
-          // 1) 상태/통계
-          const [stats, tiers] = await Promise.all([
-            fetchJson('/api/stats'),
-            fetchJson('/api/tiers').catch(() => ({ tiers: ['CHALLENGER','GRANDMASTER','MASTER'] }))
-          ]);
-
+          const stats = await fetchJson('/api/stats');
           updateStatsDisplay(stats);
           updateStatusBadge(stats);
-          buildTierFilter(tiers.tiers, stats.matches_by_tier || {});
 
-          // 2) 현재 선택된 티어 데이터 로드 (요약 API)
-          await loadMatchesForCurrentTier();
-
+          // 요약만 호출
+          const data = await fetchJson('/api/matches/summary?limit=50');
+          displayMatches(data.matches || []);
         } catch (e) {
           console.error(e);
           showError('초기 데이터 로드에 실패했습니다: ' + (e.message || e));
-        }
-      }
-
-      async function loadMatchesForCurrentTier() {
-        const container = document.getElementById('matches-section');
-        container.innerHTML = '<div class="loading">매치 데이터를 불러오는 중...</div>';
-        try {
-          const params = new URLSearchParams();
-          params.set('limit', '50'); // 최근 50개
-          if (currentTier !== 'all') params.set('tier', currentTier);
-
-          const data = await fetchJson('/api/matches/summary?' + params.toString());
-          const matches = data.matches || [];
-          displayMatches(matches, /*isSummary=*/true);
-        } catch (e) {
-          console.error(e);
-          showError('매치 데이터 로드에 실패했습니다: ' + (e.message || e));
         }
       }
 
@@ -257,160 +217,98 @@
         document.getElementById('collection-status').textContent = badge.textContent;
       }
 
-      function buildTierFilter(tiers, tierCounts) {
-        const box = document.getElementById('tier-filter');
-        // '전체' 버튼 보존
-        const allBtn = box.querySelector('[data-tier="all"]');
-        box.innerHTML = '';
-        box.appendChild(allBtn);
-        allBtn.onclick = () => setTier('all');
-
-        // 티어 버튼 생성 (서버가 주는 순서 그대로)
-        tiers.forEach(t => {
-          const cnt = tierCounts?.[t]?.toString() || '';
-          const btn = document.createElement('div');
-          btn.className = 'tier-btn';
-          btn.dataset.tier = t;
-          btn.textContent = cnt ? `${t} (${cnt})` : t;
-          btn.onclick = () => setTier(t);
-          if (currentTier === t) btn.classList.add('active');
-          box.appendChild(btn);
-        });
-
-        // active 반영
-        setActiveButton(currentTier);
-      }
-
-      function setTier(tier) {
-        currentTier = tier;
-        setActiveButton(tier);
-        loadMatchesForCurrentTier();
-      }
-
-      function setActiveButton(tier) {
-        document.querySelectorAll('.tier-btn').forEach(b => {
-          b.classList.toggle('active', b.dataset.tier === tier);
-        });
-      }
-
-      function displayMatches(matches, isSummary = false) {
+      function displayMatches(matches) {
         const container = document.getElementById('matches-section');
         if (!matches || matches.length === 0) {
           container.innerHTML = '<div class="empty">매치 데이터가 없습니다.</div>';
           return;
         }
 
-        if (isSummary) {
-          const html = matches.map((m, idx) => {
-            const matchId = m.match_id || '알 수 없음';
-            const timeStr = m.gameTimeKSTPlain || m.gameTimeKST || '알 수 없음';
-            const tierSummary = m.tier_summary || '티어 정보 없음';
+        const html = matches.map((m, idx) => {
+          const matchId = m.match_id || '알 수 없음';
+          const timeStr = m.gameTimeKSTPlain || m.gameTimeKST || '알 수 없음';
+          const tierSummary = m.tier_summary || '티어 정보 없음';
 
-            // 상위 4명 요약 (등수 오름차순)
-            const top4 = (m.players || [])
-              .slice()
-              .sort((a, b) => (a.placement ?? 99) - (b.placement ?? 99))
-              .slice(0, 4)
-              .map(p => {
-                const aug = (p.augments && p.augments.length) ? ` · 강화체: ${p.augments.join(', ')}` : '';
-                const traitsShort = (p.top_traits && p.top_traits.length)
-                  ? ` · 특성: ${p.top_traits.map(t => `${t.name || ''}${t.tier_current ? `(${t.tier_current})` : ''}`).join(', ')}`
-                  : '';
-                const unitsShort = (p.core_units && p.core_units.length)
-                  ? ` · 유닛: ${p.core_units.map(u => `${u.name || ''}${u.star ? `★${u.star}` : ''}`).join(', ')}`
-                  : '';
-                return `<div class="player-line">
-                          ${p.placement ? `${p.placement}위` : '-'} · ${escapeHtml(p.name || '')}
-                          ${traitsShort}${unitsShort}${aug}
-                        </div>`;
-              }).join('');
+          // 수집 대상(누구의 매치인지)
+          const collected = m.collected_for || {};
+          const srcName = collected.name || (collected.puuid ? (collected.puuid.slice(0,8) + '…') : '알 수 없음');
+          const srcTier = collected.tier || 'UNRANKED';
 
-            // 상세(전체 traits/units) 패널
-            const details = (m.players || [])
-              .slice()
-              .sort((a, b) => (a.placement ?? 99) - (b.placement ?? 99))
-              .map(p => {
-                const traitsFull = (p.traits || []).map(t =>
-                  `${t.name || ''}${t.tier_current ? `(${t.tier_current})` : ''}${t.num_units ? ` [${t.num_units}]` : ''}`
-                ).join(', ') || '없음';
-                const unitsFull = (p.units || []).map(u =>
-                  `${u.name || ''}${u.star ? `★${u.star}` : ''}${(u.items && u.items.length) ? ` {${u.items.join('+')}}` : ''}`
-                ).join(', ') || '없음';
-                const augFull = (p.augments && p.augments.length) ? p.augments.join(', ') : '없음';
-                return `<div class="detail-player">
-                          <div><b>${p.placement ? `${p.placement}위` : '-'}</b> · ${escapeHtml(p.name || '')} · ${p.tier || ''}</div>
-                          <div>강화체: ${escapeHtml(augFull)}</div>
-                          <div>특성 전체: ${escapeHtml(traitsFull)}</div>
-                          <div>유닛 전체: ${escapeHtml(unitsFull)}</div>
-                        </div>`;
-              }).join('');
+          // 상위 4명 요약 (등수 오름차순)
+          const top4 = (m.players || [])
+            .slice()
+            .sort((a, b) => (a.placement ?? 99) - (b.placement ?? 99))
+            .slice(0, 4)
+            .map(p => {
+              const aug = (p.augments && p.augments.length) ? ` · 강화체: ${p.augments.join(', ')}` : '';
+              const traitsShort = (p.top_traits && p.top_traits.length)
+                ? ` · 특성: ${p.top_traits.map(t => `${t.name || ''}${t.tier_current ? `(${t.tier_current})` : ''}`).join(', ')}`
+                : '';
+              const unitsShort = (p.core_units && p.core_units.length)
+                ? ` · 유닛: ${p.core_units.map(u => `${u.name || ''}${u.star ? `★${u.star}` : ''}`).join(', ')}`
+                : '';
+              const mark = p.is_source ? ' <span class="source-badge">수집대상</span>' : '';
+              return `<div class="player-line">
+                        ${p.placement ? `${p.placement}위` : '-'} · ${escapeHtml(p.name || '')}${mark}
+                        ${traitsShort}${unitsShort}${aug}
+                      </div>`;
+            }).join('');
 
-            const rowId = `mrow-${idx}`;
-            return `
-              <div class="match-item" data-row="${rowId}">
-                <div class="match-info">
-                  <div class="match-id">매치 ID: ${matchId}</div>
-                  <div class="match-details">참가자 티어: ${tierSummary}</div>
-                  ${top4}
-                </div>
-                <div class="match-time">${timeStr}</div>
-              </div>
-              <div class="match-details-panel" id="${rowId}" style="display:none;">
-                <div class="panel">
-                  ${details}
-                </div>
-              </div>
-            `;
-          }).join('');
+          // 상세(전체 traits/units)
+          const details = (m.players || [])
+            .slice()
+            .sort((a, b) => (a.placement ?? 99) - (b.placement ?? 99))
+            .map(p => {
+              const traitsFull = (p.traits || []).map(t =>
+                `${t.name || ''}${t.tier_current ? `(${t.tier_current})` : ''}${t.num_units ? ` [${t.num_units}]` : ''}`
+              ).join(', ') || '없음';
+              const unitsFull = (p.units || []).map(u =>
+                `${u.name || ''}${u.star ? `★${u.star}` : ''}${(u.items && u.items.length) ? ` {${u.items.join('+')}}` : ''}`
+              ).join(', ') || '없음';
+              const augFull = (p.augments && p.augments.length) ? p.augments.join(', ') : '없음';
+              const mark = p.is_source ? ' <span class="source-badge">수집대상</span>' : '';
+              return `<div class="detail-player">
+                        <div><b>${p.placement ? `${p.placement}위` : '-'}</b> · ${escapeHtml(p.name || '')}${mark} · ${p.tier || ''}</div>
+                        <div>강화체: ${escapeHtml(augFull)}</div>
+                        <div>특성 전체: ${escapeHtml(traitsFull)}</div>
+                        <div>유닛 전체: ${escapeHtml(unitsFull)}</div>
+                      </div>`;
+            }).join('');
 
-          container.innerHTML = `
-            <div class="matches-container">
-              ${html}
-            </div>
-          `;
-
-          // 클릭 토글 이벤트 연결
-          container.querySelectorAll('.match-item').forEach(item => {
-            item.addEventListener('click', () => {
-              const id = item.getAttribute('data-row');
-              const panel = document.getElementById(id);
-              if (panel) panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
-            });
-          });
-
-          return;
-        }
-
-        // (참고) 구 모드: 원시 /api/matches 스키마일 때의 기존 렌더. 지금은 사용하지 않음.
-        const html = matches.slice(0, 50).map(m => {
-          const timeStr = m.info?.gameCreation
-            ? new Date(m.info.gameCreation).toLocaleString('ko-KR')
-            : '알 수 없음';
-          const parts = m.info?.participants || [];
-          const tierInfo = parts
-            .map(p => p.tier)
-            .filter(Boolean)
-            .filter(t => t !== 'UNRANKED')
-            .slice(0, 3)
-            .join(', ') || '티어 정보 없음';
-          const matchId = m.metadata?.match_id || '알 수 없음';
-
+          const rowId = `mrow-${idx}`;
           return `
-            <div class="match-item">
+            <div class="match-item" data-row="${rowId}">
               <div class="match-info">
                 <div class="match-id">매치 ID: ${matchId}</div>
-                <div class="match-details">참가자 티어: ${tierInfo}</div>
+                <div class="match-details">참가자 티어: ${tierSummary}</div>
+                <div class="player-line source-line" style="margin:6px 0 10px 0;">
+                  <b>수집 대상:</b> ${escapeHtml(srcName)} (${srcTier})
+                </div>
+                ${top4}
               </div>
               <div class="match-time">${timeStr}</div>
+            </div>
+            <div class="match-details-panel" id="${rowId}" style="display:none;">
+              <div class="panel">
+                <div class="player-line source-line" style="margin-bottom:10px;">
+                  <b>수집 대상:</b> ${escapeHtml(srcName)} (${srcTier})
+                </div>
+                ${details}
+              </div>
             </div>
           `;
         }).join('');
 
-        container.innerHTML = `
-          <div class="matches-container">
-            ${html}
-          </div>
-        `;
+        container.innerHTML = `<div class="matches-container">${html}</div>`;
+
+        // 클릭 토글
+        container.querySelectorAll('.match-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const id = item.getAttribute('data-row');
+            const panel = document.getElementById(id);
+            if (panel) panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
+          });
+        });
       }
 
       function showError(msg) {
@@ -433,4 +331,5 @@
     </script>
   </body>
 </html>
+
 

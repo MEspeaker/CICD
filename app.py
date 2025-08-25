@@ -207,69 +207,70 @@ def _summarize_match(match: dict, name_map: dict) -> dict:
     meta = match.get("metadata", {}) or {}
     info = match.get("info", {}) or {}
     mids = meta.get("match_id")
-
-    raw_ts = info.get("gameCreation")
-    try:
-        t_ms = int(raw_ts)
-    except Exception:
-        t_ms = 0
-
+    t_ms = info.get("gameCreation") or 0
     parts = info.get("participants", []) or []
 
-    # 티어 집계 (UNRANKED 제외)
-    tiers = [ (p.get("tier") or "UNRANKED").upper() for p in parts ]
+    # ★ 수집 원본(누구의 매치인지)
+    collected = info.get("_collected_for") or {}
+    src_puuid = collected.get("puuid")
+    src_tier = (collected.get("tier") or "UNRANKED") if src_puuid else None
+    src_name = name_map.get(src_puuid, (src_puuid[:8] + "…") if src_puuid else None)
+
+    # 티어 집계
+    tiers = [(p.get("tier") or "UNRANKED").upper() for p in parts]
+    from collections import Counter
     c = Counter(t for t in tiers if t != "UNRANKED")
     tier_summary = ", ".join(f"{k}×{v}" for k, v in c.most_common()) or "티어 정보 없음"
 
+    # 참가자 요약(전체 traits/units 포함)
     players = []
     for p in parts:
         puuid = p.get("puuid", "")
-        name = name_map.get(puuid, (str(puuid)[:8] + "…") if puuid else "알 수 없음")
-        # 전체 traits/units 준비
+        name = name_map.get(puuid, puuid[:8] + "…") if puuid else "알 수 없음"
+
         all_traits = [
-            {
-                "name": tr.get("name"),
-                "tier_current": tr.get("tier_current"),
-                "num_units": tr.get("num_units"),
-                "style": tr.get("style"),
-            } for tr in (p.get("traits") or [])
+            {"name": tr.get("name"), "tier_current": tr.get("tier_current"), "num_units": tr.get("num_units"), "style": tr.get("style")}
+            for tr in (p.get("traits") or [])
         ]
         all_units = [
-            {
-                "name": u.get("character_id"),
-                "star": u.get("tier"),
-                "items": u.get("itemNames") or [],
-            } for u in (p.get("units") or [])
+            {"name": u.get("character_id"), "star": u.get("tier"), "items": u.get("itemNames") or []}
+            for u in (p.get("units") or [])
         ]
         players.append({
             "name": name,
             "tier": (p.get("tier") or "UNRANKED").upper(),
             "placement": p.get("placement"),
             "augments": p.get("augments") or [],
-            # 요약용 상위 3
+            "is_source": bool(p.get("is_source")),  # ← 수집원 참가자 표시
             "top_traits": sorted(all_traits, key=lambda tr: (tr.get("tier_current") or 0, tr.get("num_units") or 0), reverse=True)[:3],
             "core_units": sorted(all_units, key=lambda u: (u.get("star") or 0), reverse=True)[:3],
-            # 상세용 전체
             "traits": all_traits,
             "units": all_units,
         })
 
-    # 시간 문자열 두 형태 (KST)
+    # 시간 문자열 (KST + 깔끔형)
+    from datetime import datetime, timezone, timedelta
     kst = timezone(timedelta(hours=9))
-    if t_ms > 0:
+    if isinstance(t_ms, int) and t_ms > 0:
         dt = datetime.fromtimestamp(t_ms / 1000, tz=kst)
-        game_time_kst_iso = dt.isoformat(timespec="seconds")          # 예: 2025-08-25T17:56:01+09:00
-        game_time_kst_plain = dt.strftime("%Y-%m-%d %H:%M:%S")        # 예: 2025-08-25 17:56:01
+        iso_kst = dt.isoformat(timespec="seconds")
+        plain_kst = dt.strftime("%Y-%m-%d %H:%M:%S")
     else:
-        game_time_kst_iso = "알 수 없음"
-        game_time_kst_plain = "알 수 없음"
+        iso_kst = "알 수 없음"
+        plain_kst = "알 수 없음"
 
     return {
         "match_id": mids,
         "gameCreation": t_ms,
-        "gameTimeKST": game_time_kst_iso,
-        "gameTimeKSTPlain": game_time_kst_plain,   # ← 프런트는 이걸 쓰면 +09:00 안 보입니다
+        "gameTimeKST": iso_kst,
+        "gameTimeKSTPlain": plain_kst,
         "tier_summary": tier_summary,
+        # ★ 프론트에서 바로 쓰기 쉽게 수집 원본 정보 포함
+        "collected_for": {
+            "puuid": src_puuid,
+            "name": src_name,
+            "tier": (src_tier or "UNRANKED") if src_puuid else None,
+        },
         "players": players,
     }
 
