@@ -114,6 +114,21 @@ def get_summoner_by_puuid(platform_region: str, puuid: str) -> Optional[Dict[str
     return resp.json()
 
 
+# --- Riot Account API (regional routing 사용) ---
+
+def get_account_by_puuid(platform_region: str, puuid: str) -> Optional[Dict[str, Any]]:
+    """
+    실제 Riot ID(= gameName + tagLine)를 얻기 위한 Account API.
+    """
+    regional = get_regional_routing(platform_region)
+    url = f"https://{regional}.api.riotgames.com/riot/account/v1/accounts/by-puuid/{puuid}"
+    resp = _limited_get(url, headers=_headers(), timeout=15)
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()  # { "puuid": "...", "gameName": "...", "tagLine": "KR1" }
+
+
 # --- Match helpers (regional routing 사용) ---
 
 def get_match_ids(platform_region: str, puuid: str, count: int = 20) -> List[str]:
@@ -130,4 +145,5 @@ def get_match(platform_region: str, match_id: str) -> Dict[str, Any]:
     resp = _limited_get(url, headers=_headers(), timeout=20)
     resp.raise_for_status()
     return resp.json()
+
 
