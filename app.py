@@ -151,7 +151,7 @@ def get_stats():
         except Exception as e:
             stats["error"] = str(e)
 
-    return jsonify(stats))
+    return jsonify(stats)
 
 @app.route("/api/matches/by-tier/<tier>")
 def get_matches_by_tier(tier: str):
