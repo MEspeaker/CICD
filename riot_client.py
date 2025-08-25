@@ -5,11 +5,13 @@ from typing import Any, Dict, List, Optional
 import requests
 from rate_limiter import get_global_limiter
 
+
 def _get_api_key() -> str:
     api_key = os.getenv("RIOT_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("Missing RIOT_API_KEY environment variable")
     return api_key
+
 
 def get_regional_routing(platform_region: str) -> str:
     region = platform_region.lower()
@@ -22,8 +24,10 @@ def get_regional_routing(platform_region: str) -> str:
         return "europe"
     return "asia"
 
+
 def _headers() -> Dict[str, str]:
     return {"X-Riot-Token": _get_api_key()}
+
 
 def _limited_get(url: str, **kwargs):
     """리미터 + 429 재시도(간단 백오프)"""
@@ -54,10 +58,16 @@ def _limited_get(url: str, **kwargs):
     # 마지막 에러를 다시 던짐
     raise RuntimeError(f"GET failed after retries: {url} ({last_resp})")
 
+
 # --- League entries by tier ---
 SUPPORTED_LEAGUE_TIERS = {"challenger", "grandmaster", "master"}
 
+
 def get_league_entries(platform_region: str, tier: str) -> List[Dict[str, Any]]:
+    """
+    TFT 리그 엔드포인트는 보통 entries에 'puuid'를 제공합니다.
+    (LoL과 달리 summonerId가 없을 수 있음)
+    """
     t = tier.lower().strip()
     if t not in SUPPORTED_LEAGUE_TIERS:
         raise ValueError(f"Unsupported tier: {tier}")
@@ -71,10 +81,12 @@ def get_league_entries(platform_region: str, tier: str) -> List[Dict[str, Any]]:
         e.setdefault("_tier", t.upper())
     return entries
 
-# --- Legacy helpers for backward compatibility ---
+
+# --- Summoner helpers ---
 
 def get_challenger_entries(platform_region: str) -> List[Dict[str, Any]]:
     return get_league_entries(platform_region, "challenger")
+
 
 def get_summoner_by_id(platform_region: str, encrypted_summoner_id: str) -> Optional[Dict[str, Any]]:
     url = f"https://{platform_region}.api.riotgames.com/tft/summoner/v1/summoners/{encrypted_summoner_id}"
@@ -84,6 +96,21 @@ def get_summoner_by_id(platform_region: str, encrypted_summoner_id: str) -> Opti
     resp.raise_for_status()
     return resp.json()
 
+
+def get_summoner_by_puuid(platform_region: str, puuid: str) -> Optional[Dict[str, Any]]:
+    """
+    TFT 리그 엔트리에서 주는 puuid로 소환사 상세를 조회합니다.
+    """
+    url = f"https://{platform_region}.api.riotgames.com/tft/summoner/v1/summoners/by-puuid/{puuid}"
+    resp = _limited_get(url, headers=_headers(), timeout=15)
+    if resp.status_code == 404:
+        return None
+    resp.raise_for_status()
+    return resp.json()
+
+
+# --- Match helpers ---
+
 def get_match_ids(platform_region: str, puuid: str, count: int = 20) -> List[str]:
     regional = get_regional_routing(platform_region)
     url = f"https://{regional}.api.riotgames.com/tft/match/v1/matches/by-puuid/{puuid}/ids"
@@ -91,9 +118,11 @@ def get_match_ids(platform_region: str, puuid: str, count: int = 20) -> List[str
     resp.raise_for_status()
     return resp.json()
 
+
 def get_match(platform_region: str, match_id: str) -> Dict[str, Any]:
     regional = get_regional_routing(platform_region)
     url = f"https://{regional}.api.riotgames.com/tft/match/v1/matches/{match_id}"
     resp = _limited_get(url, headers=_headers(), timeout=20)
     resp.raise_for_status()
     return resp.json()
+

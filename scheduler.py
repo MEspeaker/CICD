@@ -43,8 +43,8 @@ def start_scheduler_from_env() -> Optional[CollectorThread]:
     except ValueError:
         return None
     region = os.getenv("COLLECT_REGION", "kr")
-    players = int(os.getenv("COLLECT_PLAYERS", "50"))
-    per_player = int(os.getenv("COLLECT_PER_PLAYER", "10"))
+    players = int(os.getenv("COLLECT_PLAYERS", "15"))
+    per_player = int(os.getenv("COLLECT_PER_PLAYER", "3"))
 
     tiers_param = os.getenv("COLLECT_TIERS", "")
     if tiers_param.strip():
