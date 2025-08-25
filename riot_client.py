@@ -14,6 +14,10 @@ def _get_api_key() -> str:
 
 
 def get_regional_routing(platform_region: str) -> str:
+    """
+    매치/계정 관련 v1들은 regional routing을 사용합니다.
+    kr/jp -> asia, na -> americas, euw/eune -> europe
+    """
     region = platform_region.lower()
     americas = {"na", "na1", "br", "br1", "lan", "la1", "las", "la2", "oc1"}
     europe = {"euw", "euw1", "eune", "eun1", "tr", "tr1", "ru"}
@@ -30,7 +34,9 @@ def _headers() -> Dict[str, str]:
 
 
 def _limited_get(url: str, **kwargs):
-    """리미터 + 429 재시도(간단 백오프)"""
+    """
+    전역 rate limiter + 429 재시도(간단 백오프).
+    """
     limiter = get_global_limiter()
     attempts = 0
     last_resp = None
@@ -42,7 +48,7 @@ def _limited_get(url: str, **kwargs):
             resp = requests.get(url, **kwargs)
             if resp.status_code != 429:
                 return resp
-            # 429: Retry-After 존중
+            # 429 → Retry-After 존중
             retry_after = 1
             try:
                 retry_after = int(resp.headers.get("Retry-After", "1")) or 1
@@ -55,7 +61,6 @@ def _limited_get(url: str, **kwargs):
             time.sleep(1)
     if isinstance(last_resp, requests.Response):
         return last_resp
-    # 마지막 에러를 다시 던짐
     raise RuntimeError(f"GET failed after retries: {url} ({last_resp})")
 
 
@@ -82,7 +87,7 @@ def get_league_entries(platform_region: str, tier: str) -> List[Dict[str, Any]]:
     return entries
 
 
-# --- Summoner helpers ---
+# --- Summoner helpers (platform routing 사용) ---
 
 def get_challenger_entries(platform_region: str) -> List[Dict[str, Any]]:
     return get_league_entries(platform_region, "challenger")
@@ -109,7 +114,7 @@ def get_summoner_by_puuid(platform_region: str, puuid: str) -> Optional[Dict[str
     return resp.json()
 
 
-# --- Match helpers ---
+# --- Match helpers (regional routing 사용) ---
 
 def get_match_ids(platform_region: str, puuid: str, count: int = 20) -> List[str]:
     regional = get_regional_routing(platform_region)
