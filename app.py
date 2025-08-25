@@ -203,8 +203,7 @@ def _load_summoner_name_map() -> Dict[str, str]:
         pass
     return name_map
 
-def _summarize_match(match: dict, name_map: Dict[str, str]) -> dict:
-    """한 매치를 사람이 읽기 좋은 요약으로 변환"""
+def _summarize_match(match: dict, name_map: dict) -> dict:
     meta = match.get("metadata", {}) or {}
     info = match.get("info", {}) or {}
     mids = meta.get("match_id")
@@ -217,57 +216,63 @@ def _summarize_match(match: dict, name_map: Dict[str, str]) -> dict:
 
     parts = info.get("participants", []) or []
 
-    # 참가자 티어 집계 (UNRANKED 제외)
+    # 티어 집계 (UNRANKED 제외)
     tiers = [ (p.get("tier") or "UNRANKED").upper() for p in parts ]
     c = Counter(t for t in tiers if t != "UNRANKED")
     tier_summary = ", ".join(f"{k}×{v}" for k, v in c.most_common()) or "티어 정보 없음"
 
-    # 참가자 요약
     players = []
     for p in parts:
         puuid = p.get("puuid", "")
         name = name_map.get(puuid, (str(puuid)[:8] + "…") if puuid else "알 수 없음")
+        # 전체 traits/units 준비
+        all_traits = [
+            {
+                "name": tr.get("name"),
+                "tier_current": tr.get("tier_current"),
+                "num_units": tr.get("num_units"),
+                "style": tr.get("style"),
+            } for tr in (p.get("traits") or [])
+        ]
+        all_units = [
+            {
+                "name": u.get("character_id"),
+                "star": u.get("tier"),
+                "items": u.get("itemNames") or [],
+            } for u in (p.get("units") or [])
+        ]
         players.append({
             "name": name,
             "tier": (p.get("tier") or "UNRANKED").upper(),
             "placement": p.get("placement"),
             "augments": p.get("augments") or [],
-            # 대표 특성 상위 3개
-            "top_traits": sorted(
-                [
-                    {"name": tr.get("name"),
-                     "tier_current": tr.get("tier_current"),
-                     "num_units": tr.get("num_units")}
-                    for tr in (p.get("traits") or [])
-                ],
-                key=lambda tr: (tr.get("tier_current") or 0, tr.get("num_units") or 0),
-                reverse=True
-            )[:3],
-            # 대표 유닛 상위 3개(별 높은 순)
-            "core_units": sorted(
-                [
-                    {"name": u.get("character_id"),
-                     "star": u.get("tier"),
-                     "items": u.get("itemNames") or []}
-                    for u in (p.get("units") or [])
-                ],
-                key=lambda u: (u.get("tier") or 0),
-                reverse=True
-            )[:3],
+            # 요약용 상위 3
+            "top_traits": sorted(all_traits, key=lambda tr: (tr.get("tier_current") or 0, tr.get("num_units") or 0), reverse=True)[:3],
+            "core_units": sorted(all_units, key=lambda u: (u.get("star") or 0), reverse=True)[:3],
+            # 상세용 전체
+            "traits": all_traits,
+            "units": all_units,
         })
 
-    iso_kst = "알 수 없음"
+    # 시간 문자열 두 형태 (KST)
+    kst = timezone(timedelta(hours=9))
     if t_ms > 0:
-        kst = timezone(timedelta(hours=9))
-        iso_kst = datetime.fromtimestamp(t_ms / 1000, tz=kst).isoformat(timespec="seconds")
+        dt = datetime.fromtimestamp(t_ms / 1000, tz=kst)
+        game_time_kst_iso = dt.isoformat(timespec="seconds")          # 예: 2025-08-25T17:56:01+09:00
+        game_time_kst_plain = dt.strftime("%Y-%m-%d %H:%M:%S")        # 예: 2025-08-25 17:56:01
+    else:
+        game_time_kst_iso = "알 수 없음"
+        game_time_kst_plain = "알 수 없음"
 
     return {
         "match_id": mids,
         "gameCreation": t_ms,
-        "gameTimeKST": iso_kst,
+        "gameTimeKST": game_time_kst_iso,
+        "gameTimeKSTPlain": game_time_kst_plain,   # ← 프런트는 이걸 쓰면 +09:00 안 보입니다
         "tier_summary": tier_summary,
         "players": players,
     }
+
 
 @app.route("/api/matches/summary")
 def get_matches_summary():
@@ -317,6 +322,73 @@ def get_matches_summary():
     out = [_summarize_match(m, name_map) for m in matches[:limit]]
 
     return jsonify({"matches": out, "total": len(matches)})
+
+@app.route("/api/admin/backfill-names", methods=["POST"])
+def backfill_names():
+    """
+    matches.jsonl에서 발견한 puuid 중, summoners.json에 이름이 비어 있는 항목을
+    Riot API로 조회하여 이름을 채웁니다. (최대 limit명)
+    사용 예: curl -X POST "https://.../api/admin/backfill-names?limit=30"
+    """
+    limit = int(request.args.get("limit", "30"))
+    limit = max(1, min(100, limit))
+
+    # 지연 임포트 (연쇄 ImportError 방지)
+    try:
+        from riot_client import get_summoner_by_puuid
+        from storage import load_summoners, save_summoners
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"import failed: {e}"}), 500
+
+    # 현재 캐시 로드
+    cache = { (s.get("puuid") or ""): s for s in (load_summoners() or []) if isinstance(s, dict) }
+    need: List[str] = []
+
+    # matches.jsonl에서 puuid 수집
+    try:
+        if MATCHES_JSONL.exists():
+            with MATCHES_JSONL.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line: continue
+                    try:
+                        m = json.loads(line)
+                    except Exception:
+                        continue
+                    parts = (m.get("info", {}) or {}).get("participants", []) or []
+                    for p in parts:
+                        puuid = p.get("puuid")
+                        if not puuid: continue
+                        rec = cache.get(puuid)
+                        has_name = bool(rec and (rec.get("name") or (rec.get("gameName") and rec.get("tagLine"))))
+                        if not has_name and puuid not in need:
+                            need.append(puuid)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    fetched = 0
+    out_errors = []
+    for puuid in need[:limit]:
+        try:
+            sm = get_summoner_by_puuid(request.args.get("region","kr") or "kr", puuid)
+            if sm:
+                # 캐시에 병합/저장
+                old = cache.get(puuid) or {}
+                old.update(sm)
+                cache[puuid] = old
+                fetched += 1
+        except Exception as e:
+            out_errors.append(str(e))
+
+    # 저장
+    try:
+        from storage import save_summoners
+        save_summoners(list(cache.values()))
+    except Exception as e:
+        out_errors.append(f"save_summoners: {e}")
+
+    return jsonify({"ok": True, "attempted": min(limit, len(need)), "fetched": fetched, "errors": out_errors})
+
 
 # --- 엔트리포인트 ---
 if __name__ == "__main__":
