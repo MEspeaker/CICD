@@ -29,9 +29,30 @@ server {
     server_tokens off;
 
     # ── WAF(ModSecurity) ────────────────────────────────────────────────
-    # 볼륨 구조: /etc/nginx/modsec/main.conf 가 modsecurity.conf/CRS를 include
     modsecurity on;
-    modsecurity_rules_file /etc/nginx/modsec/main.conf;
+    # main.conf 대신, 여기서 안전한 로딩 순서를 직접 지정(중복 Include 방지)
+    modsecurity_rules '
+      SecRuleEngine DetectionOnly
+      SecRequestBodyAccess On
+      SecResponseBodyAccess Off
+
+      SecAuditEngine RelevantOnly
+      SecAuditLog /var/log/modsecurity/audit.log
+      SecAuditLogFormat JSON
+      SecAuditLogParts ABIJDEFHZ
+
+      SecStatusEngine Off
+      SecUnicodeMapFile unicode.mapping 20127
+      SecTmpDir  /tmp
+      SecDataDir /tmp
+
+      # OWASP CRS: 한번만 포함 (SecDefaultAction은 CRS 쪽에서 관리)
+      Include /etc/modsecurity/crs/crs-setup.conf
+      Include /usr/share/modsecurity-crs/rules/*.conf
+
+      # anomaly-based 차단 임계치(엔진 On 전환 시 효과)
+      SecAction "id:900110,phase:1,nolog,pass,setvar:tx.anomaly_score_blocking=on,setvar:tx.inbound_anomaly_score_threshold=5,setvar:tx.outbound_anomaly_score_threshold=4"
+    ';
 
     # ── 보안 헤더 ───────────────────────────────────────────────────────
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -39,8 +60,8 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
 
-    # ⚠ 현재 index.html이 인라인 <style>과 인라인 <script>를 사용하므로 'unsafe-inline' 필요
-    #   fetch('/api/...') 호출을 위해 connect-src 'self' 도 허용
+    # index.html이 인라인 <style>/<script>를 사용하므로 unsafe-inline 허용
+    # fetch('/api/...')를 위해 connect-src 'self' 허용
     add_header Content-Security-Policy "\
       default-src 'self'; \
       base-uri 'self'; \
@@ -53,7 +74,6 @@ server {
       font-src 'self' data:; \
     " always;
 
-    # HSTS
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 
     # Spectre 완화(브라우저 측)
@@ -63,8 +83,7 @@ server {
 
     proxy_hide_header X-Powered-By;
 
-    # ── 정적 파일(/static) : Flask로 프록시 ─────────────────────────────
-    # WAF는 유지(요청 특성상 오탐이 있으면 룰 튜닝으로 해결)
+    # ── 정적 파일(/static): Flask로 프록시 (WAF 유지) ────────────────────
     location ^~ /static/ {
         add_header Cache-Control "public, max-age=31536000, immutable" always;
         proxy_pass http://web:5000;
@@ -83,5 +102,6 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
+
 
 
