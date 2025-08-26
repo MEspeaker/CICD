@@ -1,0 +1,152 @@
+name: Security – DAST (ZAP after CD)
+
+on:
+  # CD 워크플로우가 "성공"하면 후속 실행
+  workflow_run:
+    workflows: ["CD – Build, Push & Deploy to GCE"]
+    types: [completed]
+  # 수동/주기 실행도 허용
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 1"   # 매주 월요일 00:00 UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap_scan:
+    # workflow_run일 때는 CD가 success이고 브랜치가 main일 때만 실행
+    if: >
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write   # artifact 업로드 여유 권한
+
+    env:
+      TARGET: https://${{ secrets.DOMAIN }}
+      SCAN_MINUTES: "5"   # ZAP baseline spider 시간
+      USE_ALPHA: "1"      # 1이면 -a 활성
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure TARGET is set
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${TARGET:-}" ] || [ "${TARGET#https://}" = "${TARGET}" ]; then
+            echo "ERROR: secrets.DOMAIN이 비어있거나 잘못되었습니다. (TARGET=${TARGET:-<empty>})" >&2
+            exit 1
+          fi
+          echo "Target: ${TARGET}"
+
+      # ZAP 예외/완화 규칙 (탭 구분 필수)
+      - name: Prepare ZAP rules.tsv (tabs!)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .zap
+          : > .zap/rules.tsv
+          printf '10015\tWARN\tCache-Control tune when behind CDN\n' >> .zap/rules.tsv
+          printf '10021\tWARN\tAdd X-Content-Type-Options nosniff\n' >> .zap/rules.tsv
+          printf '10035\tWARN\tEnable HSTS after HTTPS stable\n' >> .zap/rules.tsv
+          printf '10036\tWARN\tHide Server header via nginx\n' >> .zap/rules.tsv
+          printf '10038\tWARN\tBaseline CSP then tighten\n' >> .zap/rules.tsv
+          printf '10049\tWARN\tTune cacheability by route\n' >> .zap/rules.tsv
+          printf '10063\tWARN\tAdd Permissions-Policy\n' >> .zap/rules.tsv
+          printf '90004\tWARN\tSpectre isolation (COOP/CORP/COEP)\n' >> .zap/rules.tsv
+          printf '90005\tIGNORE\tSec-Fetch-* are browser request headers\n' >> .zap/rules.tsv
+          echo "---- .zap/rules.tsv (tabs shown as ^I) ----"
+          cat -v .zap/rules.tsv
+
+      # 컨테이너가 /zap/wrk 에 쓸 수 있도록 퍼미션 완화
+      - name: Loosen workspace perms (container write)
+        run: sudo chmod -R a+rwX .
+
+      # 배포 직후 타깃 준비될 때까지 대기
+      - name: Wait until HTTPS is up
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 24); do
+            if curl -fsS -m 5 -o /dev/null "${TARGET}"; then
+              echo "HTTPS OK"
+              exit 0
+            fi
+            echo "...waiting HTTPS ($i/24)"; sleep 5
+          done
+          echo "ERROR: target is not ready" >&2
+          exit 1
+
+      # ZAP 컨테이너 직접 실행 (Baseline)
+      # WARN(exit 2)은 통과로 취급, FAIL(exit 1)은 실패
+      - name: Run ZAP Baseline (docker)
+        shell: bash
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          docker pull ghcr.io/zaproxy/zaproxy:stable
+
+          # -a 플래그 구성
+          A_FLAG=""
+          if [ "${USE_ALPHA}" = "1" ]; then
+            A_FLAG="-a"
+          fi
+
+          set +e
+          docker run --rm --network=host \
+            -v "$PWD":/zap/wrk \
+            -e ZAP_AUTH_HEADER="${{ secrets.ZAP_AUTH_HEADER }}" \
+            -e ZAP_AUTH_HEADER_VALUE="${{ secrets.ZAP_AUTH_HEADER_VALUE }}" \
+            -e ZAP_AUTH_HEADER_SITE="${{ secrets.ZAP_AUTH_HEADER_SITE }}" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+              -t "${TARGET}" \
+              -m "${SCAN_MINUTES}" ${A_FLAG} \
+              -c .zap/rules.tsv \
+              -J report_json.json \
+              -w report_md.md \
+              -r report_html.html
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            echo "ZAP: no alerts. (exit 0)"
+          elif [ "$rc" -eq 2 ]; then
+            echo "ZAP: WARN-only (exit 2). Proceeding…"
+          else
+            echo "ZAP: failed with exit code $rc"
+            exit "$rc"
+          fi
+
+      # Job Summary 에 MD 결과 첨부
+      - name: Append summary (Markdown)
+        if: always()
+        run: |
+          {
+            echo "## ZAP Baseline Report"
+            echo
+            if [ -s report_md.md ]; then
+              sed -e 's/\r$//' report_md.md
+            else
+              echo "_No markdown report generated._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 리포트 아티팩트 업로드
+      - name: Upload ZAP reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report-${{ github.run_id }}
+          path: |
+            report_json.json
+            report_md.md
+            report_html.html
+          retention-days: 14
