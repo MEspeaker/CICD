@@ -2,10 +2,9 @@
 services:
   web:
     image: ${DOCKERHUB_USERNAME}/myflask:latest
-    environment:           # ← 컨테이너 내부 환경변수
+    environment:
       FLASK_ENV: production
       RIOT_API_KEY: ${RIOT_API_KEY}
-      # 아래 값들은 선택 (스케줄러 사용 시)
       COLLECT_INTERVAL_SEC: ${COLLECT_INTERVAL_SEC:-900}
       COLLECT_REGION: kr
       COLLECT_PLAYERS: ${COLLECT_PLAYERS:-15}
@@ -21,25 +20,39 @@ services:
 
   nginx:
     container_name: nginx
-    image: nginx:alpine
+    build:
+      context: ./nginx              # ← WAF 빌드 컨텍스트
+      dockerfile: Dockerfile.waf    # ← 동적 모듈(modsecurity) 포함
     depends_on:
       web:
         condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
     volumes:
-      - ./nginx:/etc/nginx/templates:ro
+      # Nginx 템플릿(HTTP/HTTPS 전환 시 파일 교체)
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+
+      # Certbot (발급·갱신)
       - ./certbot/config:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    environment:           # ← 매핑 형식
-      DOMAIN: ${DOMAIN}
+
+      # WAF(설정/룰/로그)
+      - ./nginx/modsec:/etc/nginx/modsec:ro         # main.conf, modsecurity.conf, crs/*.conf 등
+      - ./nginx/logs:/var/log/nginx                 # Nginx 로그
+      - ./nginx/modsec-logs:/var/log/modsecurity    # ModSecurity 감사 로그
+
     entrypoint:
       - sh
       - -exc
       - |
-        envsubst '$DOMAIN' < /etc/nginx/templates/default.http.conf.template \
-          > /etc/nginx/conf.d/default.conf
+        # 템플릿 -> 동적 conf 생성
+        envsubst '$DOMAIN' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf
+        # 문법 확인
+        nginx -t
+        # 실행 (nginx.conf 최상단에서 modsecurity 모듈 load)
         exec nginx -g 'daemon off;'
     restart: unless-stopped
 

@@ -1,32 +1,219 @@
-# HTTP → HTTPS 리다이렉트 + ACME
+# 1) HTTP → HTTPS 리다이렉트 + ACME
+
 server {
+
     listen 80;
+
     server_name $DOMAIN;
+
+
 
     location ^~ /.well-known/acme-challenge/ {
+
         root /var/www/certbot;
+
         allow all;
+
     }
+
+
 
     location / {
+
         return 301 https://$host$request_uri;
+
     }
+
 }
 
-# HTTPS 서비스
+
+
+# 2) HTTPS 서비스
+
 server {
+
     listen 443 ssl;
+
     server_name $DOMAIN;
 
-    # SSL 인증서 설정 (최소한의 설정)
+
+
     ssl_certificate     /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+
     ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
 
-    location / {
-        proxy_pass http://web:5000;
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    include             /etc/letsencrypt/options-ssl-nginx.conf;
+
+    ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+
+
+    server_tokens off;
+
+
+
+    # ── WAF(ModSecurity) ──
+
+    modsecurity on;
+
+    modsecurity_rules_file /etc/modsecurity/modsecurity.conf;
+
+
+
+    # ── 보안 헤더(기본) ───────────────────────────────────────────────────
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+
+    add_header X-Content-Type-Options "nosniff" always;
+
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'" always;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+
+
+    # Spectre 완화(기본)
+
+    add_header Cross-Origin-Opener-Policy  "same-origin" always;   # COOP
+
+    add_header Cross-Origin-Resource-Policy "same-origin" always;  # CORP
+
+    # ⚠ 필요 시에만 활성화(외부 리소스 CORS/CORP 확인 후)
+
+    # add_header Cross-Origin-Embedder-Policy "require-corp" always; # COEP
+
+
+
+    # 기본 응답은 캐시 금지(동적)
+
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+
+    add_header Pragma "no-cache" always;
+
+
+
+    proxy_hide_header X-Powered-By;
+
+
+
+    # — robots.txt —
+
+    location = /robots.txt {
+
+        default_type text/plain;
+
+
+
+        # (중요) location에 add_header 쓰면 상위 헤더가 사라지므로 다시 선언
+
+        add_header X-Frame-Options "SAMEORIGIN" always;
+
+        add_header X-Content-Type-Options "nosniff" always;
+
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+
+        add_header Content-Security-Policy "default-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+        add_header Cross-Origin-Opener-Policy  "same-origin" always;
+
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+
+
+
+        # 캐시(정적): Expires 대신 Cache-Control만 사용해 중복 제거
+
+        add_header Cache-Control "public, max-age=3600, immutable" always;
+
+
+
+        return 200 "User-agent: *\nDisallow:\n";
+
     }
+
+
+
+    # — sitemap.xml —
+
+    location = /sitemap.xml {
+
+        default_type application/xml;
+
+
+
+        # (중요) 상위 헤더 재선언
+
+        add_header X-Frame-Options "SAMEORIGIN" always;
+
+        add_header X-Content-Type-Options "nosniff" always;
+
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        add_header Permissions-Policy "geolocation=(), camera=(), microphone=()" always;
+
+        add_header Content-Security-Policy "default-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
+
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+        add_header Cross-Origin-Opener-Policy  "same-origin" always;
+
+        add_header Cross-Origin-Resource-Policy "same-origin" always;
+
+
+
+        add_header Cache-Control "public, max-age=3600, immutable" always;
+
+
+
+        return 200 "<?xml version='1.0' encoding='UTF-8'?><urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'></urlset>";
+
+    }
+
+
+
+    # 정적 자원: 장기 캐시
+
+    location ~* \.(css|js|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
+
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+
+        try_files $uri @flask;
+
+    }
+
+
+
+    # 앱 프록시
+
+    location / {
+
+        proxy_pass http://web:5000;
+
+        proxy_set_header Host              $host;
+
+        proxy_set_header X-Real-IP         $remote_addr;
+
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+    }
+
+
+
+    location @flask {
+
+        proxy_pass http://web:5000;
+
+    }
+
 }
+
+ChatGPT

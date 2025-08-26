@@ -1,0 +1,119 @@
+# Dockerfile.waf
+FROM debian:bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+
+# NGINX + ModSecurity v3 + CRS + envsubst
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl \
+      nginx-full \
+      libmodsecurity3 \
+      libnginx-mod-http-modsecurity \
+      modsecurity-crs \
+      gettext-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# ① ModSecurity 모듈 로더 중복 방지
+RUN set -eux; \
+    mkdir -p /etc/nginx/modules-enabled /etc/nginx/modules-available; \
+    # 기존에 modsecurity 모듈을 load하는 파일이 있으면 모두 제거
+    for f in $(grep -Rl 'ngx_http_modsecurity_module\.so' /etc/nginx/modules-enabled || true); do \
+      rm -f "$f"; \
+    done; \
+    # 패키지 제공 로더가 있으면 enable, 없으면 우리가 1회만 load_module 생성
+    if [ -f /etc/nginx/modules-available/mod-http-modsecurity.conf ]; then \
+      ln -sf /etc/nginx/modules-available/mod-http-modsecurity.conf \
+             /etc/nginx/modules-enabled/50-mod-http-modsecurity.conf; \
+    else \
+      printf 'load_module /usr/lib/nginx/modules/ngx_http_modsecurity_module.so;\n' \
+        > /etc/nginx/modules-enabled/50-mod-http-modsecurity.conf; \
+    fi
+
+# ② ModSecurity + CRS 설정 (+ unicode.mapping 절대경로 및 코드페이지 지정)
+RUN set -eux; \
+    mkdir -p /etc/modsecurity /var/log/modsecurity /etc/nginx/modsec /etc/nginx/templates; \
+    \
+    # -- modsecurity.conf 확보 (패키지 → 도큐 예제 → 원격 → 최소)
+    if [ -f /etc/modsecurity/modsecurity.conf-recommended ]; then \
+      cp /etc/modsecurity/modsecurity.conf-recommended /etc/modsecurity/modsecurity.conf; \
+    elif [ -f /usr/share/doc/libmodsecurity3/examples/modsecurity.conf-recommended.gz ]; then \
+      zcat /usr/share/doc/libmodsecurity3/examples/modsecurity.conf-recommended.gz > /etc/modsecurity/modsecurity.conf; \
+    elif [ -f /usr/share/doc/libmodsecurity3/examples/modsecurity.conf-recommended ]; then \
+      cp /usr/share/doc/libmodsecurity3/examples/modsecurity.conf-recommended /etc/modsecurity/modsecurity.conf; \
+    else \
+      curl -fsSL https://raw.githubusercontent.com/SpiderLabs/ModSecurity/v3/master/modsecurity.conf-recommended \
+        -o /etc/modsecurity/modsecurity.conf || { \
+        echo "modsecurity.conf 원격 확보 실패 → 최소 구성으로 생성"; \
+        printf '%s\n' \
+          'SecRuleEngine On' \
+          'SecRequestBodyAccess On' \
+          'SecResponseBodyAccess Off' \
+          'SecAuditEngine RelevantOnly' \
+          'SecAuditLog /var/log/modsecurity/audit.log' \
+          'SecAuditLogFormat JSON' \
+          'SecAuditLogParts ABIJDEFHZ' \
+          'SecTmpDir /tmp' \
+          'SecDataDir /tmp' \
+          > /etc/modsecurity/modsecurity.conf; \
+      }; \
+    fi; \
+    # 권장값 보정
+    sed -ri 's/SecRuleEngine\s+DetectionOnly/SecRuleEngine On/' /etc/modsecurity/modsecurity.conf || true; \
+    sed -ri 's|^SecAuditLog .*|SecAuditLog /var/log/modsecurity/audit.log|' /etc/modsecurity/modsecurity.conf || true; \
+    touch /var/log/modsecurity/audit.log && chown -R www-data:www-data /var/log/modsecurity; \
+    \
+    # -- unicode.mapping 확보
+    if [ ! -s /etc/modsecurity/unicode.mapping ]; then \
+      CAND=""; \
+      for p in \
+        /etc/modsecurity/unicode.mapping \
+        /usr/share/modsecurity/unicode.mapping \
+        /usr/share/doc/libmodsecurity3/examples/unicode.mapping.gz \
+      ; do \
+        if [ -e "$p" ]; then CAND="$p"; break; fi; \
+      done; \
+      if [ -n "$CAND" ]; then \
+        case "$CAND" in \
+          *.gz) zcat "$CAND" > /etc/modsecurity/unicode.mapping ;; \
+          *)    cp "$CAND"  /etc/modsecurity/unicode.mapping ;; \
+        esac; \
+      else \
+        curl -fsSL https://raw.githubusercontent.com/SpiderLabs/ModSecurity/v3/master/unicode.mapping \
+          -o /etc/modsecurity/unicode.mapping; \
+      fi; \
+    fi; \
+    # -- SecUnicodeMapFile: 절대경로 + 코드페이지(20127)까지 지정(에러 방지)
+    if grep -qi '^\s*SecUnicodeMapFile' /etc/modsecurity/modsecurity.conf; then \
+      sed -ri 's|^\s*SecUnicodeMapFile\b.*|SecUnicodeMapFile /etc/modsecurity/unicode.mapping 20127|' /etc/modsecurity/modsecurity.conf; \
+    else \
+      printf '\nSecUnicodeMapFile /etc/modsecurity/unicode.mapping 20127\n' >> /etc/modsecurity/modsecurity.conf; \
+    fi; \
+    \
+    # -- CRS 확보 (패키지/시스템 → GitHub v4.5.0)
+    CRS_DIR="/usr/share/modsecurity-crs"; \
+    mkdir -p "$CRS_DIR"; \
+    CAND="$(find "$CRS_DIR" /usr/share -maxdepth 6 -type f -name 'crs-setup.conf.example*' | head -n1 || true)"; \
+    if [ -z "$CAND" ]; then \
+      ver="v4.5.0"; \
+      curl -fsSL "https://github.com/coreruleset/coreruleset/archive/refs/tags/${ver}.tar.gz" \
+        | tar -xz -C "$CRS_DIR" --strip-components=1; \
+      CAND="$(find "$CRS_DIR" -maxdepth 2 -type f -name 'crs-setup.conf.example*' | head -n1 || true)"; \
+    fi; \
+    if [ -n "$CAND" ]; then \
+      case "$CAND" in \
+        *.gz) zcat "$CAND" > "$CRS_DIR/crs-setup.conf" ;; \
+        *)    cp "$CAND"  "$CRS_DIR/crs-setup.conf" ;; \
+      esac; \
+    else \
+      echo "경고: crs-setup.conf.example을 찾지 못해 빈 설정 생성"; \
+      printf '# CRS setup placeholder\n' > "$CRS_DIR/crs-setup.conf"; \
+    fi; \
+    \
+    # nginx에서 include할 메인 규칙 묶음
+    printf '%s\n' \
+      'Include "/etc/modsecurity/modsecurity.conf"' \
+      'Include "/usr/share/modsecurity-crs/crs-setup.conf"' \
+      'Include "/usr/share/modsecurity-crs/rules/*.conf"' \
+      > /etc/nginx/modsec/main.conf
+
+EXPOSE 80 443
